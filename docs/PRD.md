@@ -1,143 +1,90 @@
 # Product Requirements Document (PRD)
 
-## Pathfinder – AI-Accelerated Cyber Threat Response Platform
+## Pathfinder – File-Level AI Attack Path Prediction
 
 ---
 
 # 1. Product Overview
 
 **Product Name:** Pathfinder
-**Category:** AI-Accelerated Cyber Defense / Threat Response
+**Category:** AI-Accelerated Cyber Defense / Attack Path Prediction
 **Tagline:** *AI that reduces cyber threat analysis from hours to seconds.*
-**Primary Goal:** Reduce **Mean Time to Respond (MTTR)** by shrinking the three delays that matter most in cyber response:
 
-* threat discovery time
-* attack path analysis time
-* mitigation decision time
+**Primary Goal:** Reduce **Mean Time To Respond (MTTR)** by helping analysts answer one urgent question quickly:
 
-Pathfinder is not just a tool that predicts attack paths. It is an **AI system that reduces the time required to understand and respond to cyber threats**.
+> If an attacker starts here, what is the most likely path through this codebase?
 
-The platform automatically derives architecture from code, maps vulnerabilities to affected services, simulates likely attacker movement, and recommends mitigations. It combines:
+Pathfinder's MVP deliberately reduces scope.
 
-* **CodeGraph-grounded graph extraction**
-* **LLM-derived service boundary inference**
-* **LLM-generated risk weights from service code and vulnerability context**
-* **deterministic path traversal over validated graph structure**
+Instead of inferring services, environments, and runtime topology, Pathfinder starts with a simpler and more buildable model:
 
-Pathfinder models an organization's system as a **goal-conditioned attack graph**, where potential attacker movements are simulated and ranked using LLM-generated numeric risk factors such as:
+* each **file** is a graph node
+* file dependencies create the **structural graph**
+* plausible attacker moves become **attack-transition edges**
+* an LLM assigns attack-relevant **risk weights** to files and transitions
+* a graph algorithm calculates the most likely attack path
 
-* exploitability
-* network reachability
-* privilege escalation potential
-* asset value
-* attacker objective
-* detection risk
-
-Unlike traditional vulnerability scanners that produce long lists of issues, Pathfinder answers the question:
-
-> *If an attacker exploits this vulnerability, what is the most likely path to critical assets?*
-
-The platform predicts **probable attack chains**, identifies **defensive choke points**, and provides **explainable reasoning** for security teams.
-
-When a new vulnerability appears, Pathfinder compresses a workflow that often takes analysts **30 minutes to several hours** into **seconds**:
-
-```text
-Vulnerability appears
-        ↓
-AI derives service architecture from code
-        ↓
-AI assigns risk weights from code and CVE context
-        ↓
-Graph engine ranks attacker paths
-        ↓
-AI identifies choke points
-        ↓
-AI recommends mitigations
-```
+This keeps the system grounded, demoable, and technically credible for an MVP.
 
 ---
 
 # 2. Problem Statement
 
-Security teams currently struggle with:
+When a vulnerability appears, security teams often need to:
 
-### Alert Overload
+1. locate the affected code
+2. understand what that code touches
+3. trace dependencies manually
+4. reason about attacker movement
+5. decide what to patch or monitor first
 
-Vulnerability scanners generate hundreds of findings with no prioritization based on real attack paths.
+This is slow, especially in unfamiliar or large codebases.
 
-### Lack of Context
+Existing tools often produce:
 
-Security tools identify vulnerabilities but do not explain how they could combine to form a real attack chain.
+* long lists of vulnerable files or packages
+* weak prioritization
+* little context on likely attack progression
+* no clear “fix this first” story
 
-### Manual Architecture Comprehension
-
-When a CVE appears, analysts often need to reverse-engineer how a codebase maps to services, dependencies, trust boundaries, and crown-jewel assets.
-
-### Vulnerability Interpretation Bottleneck
-
-Security advisories are written in natural language. Analysts must translate descriptions such as *"improper token validation allows privilege escalation"* into concrete architectural risk.
-
-### Slow Response Times
-
-Security analysts must manually:
-
-1. read the vulnerability report
-2. identify the affected service
-3. search the codebase for usage
-4. trace dependencies
-5. understand architecture
-6. determine impact
-7. identify attack paths
-8. propose mitigations
-
-This often takes **30 minutes to several hours**, especially in large systems.
-
-### Rise of Autonomous Attacks
-
-With AI-driven cyber threats and automated exploitation frameworks, attackers can rapidly explore infrastructure weaknesses.
-
-Organizations need tools that can:
-
-* simulate attacker behavior
-* identify likely attack paths
-* prioritize defenses
-* explain risk clearly
+Pathfinder addresses this by turning the codebase into a structural file graph, deriving an attack graph from that structure, and ranking likely attack paths automatically.
 
 ---
 
 # 3. Product Vision
 
-Pathfinder provides **defensive autonomy** by combining **CodeGraph-grounded AI understanding** with **deterministic graph traversal**.
+Pathfinder is an AI-assisted code risk engine that combines:
 
-The system:
+* **file-level graph extraction from code**
+* **LLM-based file and attack-transition scoring**
+* **deterministic graph search**
 
-1. Derives a **CodeGraph** from the codebase
-2. Uses an LLM to infer **service nodes, service boundaries, and capabilities** from graph evidence
-3. Validates those outputs and constructs a **Service Graph**
-4. Uses an LLM to translate service code and CVE context into **structured risk weights**
-5. Runs deterministic path search over a weighted **goal-conditioned Attack Graph**
-6. Explains the reasoning and recommends mitigations
+High-level workflow:
 
-The result is a **live, explainable security model** that moves teams from reactive investigation to proactive response.
+```text
+Vulnerability or attack goal appears
+        ↓
+Pathfinder builds a structural file graph
+        ↓
+Pathfinder derives attack-transition edges
+        ↓
+LLM scores files and transitions for attack relevance
+        ↓
+Graph engine computes likely attack paths
+        ↓
+Pathfinder surfaces the top path and key files
+```
 
-### Immediate Value Delivered by the MVP
+The result is a practical MVP that can show clear value without needing full service inference or runtime telemetry.
 
-Even a bounded first version of Pathfinder delivers practical value:
+### Why This Reduced Scope Makes Sense
 
-* it shortens triage for a newly disclosed vulnerability
-* it gives analysts an architectural view without manual code archaeology
-* it prioritizes the first mitigation action instead of producing another long list
-* it creates a demoable foundation for a larger autonomous defense roadmap
+This version is smaller, faster to build, and easier to validate because:
 
-### Why This Product Is Feasible
-
-The MVP is intentionally conservative in scope:
-
-* architecture is derived from a bounded codebase rather than every possible enterprise system
-* service-node inference and risk scoring are AI-driven but constrained by CodeGraph evidence
-* attack-path traversal remains deterministic once validated weights are assigned
-* LLM outputs can be schema-validated, cached, and reviewed before use
-* the system can show immediate value before requiring deep runtime integrations
+* files are explicit and directly observable
+* file dependencies are easier to extract than service boundaries
+* file-level scoring is easier to explain in a demo
+* attack paths can still be computed meaningfully from code structure
 
 ---
 
@@ -145,519 +92,270 @@ The MVP is intentionally conservative in scope:
 
 ### Primary Users
 
-Security Operations Center (SOC) Analysts
-Responsible for monitoring threats and responding to incidents.
-
-### Secondary Users
-
-Security Architects
-Responsible for infrastructure design and risk management.
-
-### Tertiary Users
-
-CISOs and Security Leadership
-Require strategic visibility into systemic risk.
+* SOC analysts
+* application security engineers
+* security architects
 
 ### User Outcomes
 
-SOC Analyst outcomes:
+Users should be able to:
 
-* know which path matters first
-* know what to patch or monitor first
-* reduce time spent manually tracing service dependencies
-
-Security Architect outcomes:
-
-* identify risky trust boundaries and choke points
-* evaluate segmentation and hardening opportunities
-* reason about system-wide blast radius
-
-Leadership outcomes:
-
-* understand why a threat matters
-* see a defensible prioritization narrative
-* justify investment in proactive cyber defense
+* identify the most dangerous code path quickly
+* understand which files are likely stepping stones for an attacker
+* prioritize patching, review, or monitoring actions
+* explain why a predicted path matters
 
 ---
 
-# 5. Key Product Capabilities
+# 5. Core Product Capabilities
 
-Pathfinder provides the following core capabilities:
+### File Graph Construction
 
-### AI-Derived Service Architecture
+Pathfinder builds a graph where:
 
-Pathfinder automatically derives a security-relevant architecture from source code by combining CodeGraph evidence with LLM service-boundary inference.
+* **nodes** = source files
+* **structural edges** = dependency or reference relationships between files
 
-Layered graph model:
+Example file nodes:
 
-```text
-CodeGraph → Service Graph → Attack Graph
-```
+* `auth.py`
+* `billing_service.py`
+* `db_client.py`
+* `admin_routes.py`
 
-The LLM defines service nodes from graph-backed candidates such as:
-
-* authentication service
-* billing service
-* notification worker
-* admin interface
-* shared database access layer
-
-Example relationships:
-
-* service dependencies
-* network reachability
-* credential trust
-* API permissions
+This graph is the structural substrate, not yet the full attack model.
 
 ---
 
-### Instant Vulnerability Impact Analysis
+### Attack Transition Derivation
 
-Given a CVE or vulnerability description, Pathfinder can:
+Pathfinder derives an attack graph from the structural file graph.
 
-* map the issue to the affected service
-* identify likely downstream assets at risk
-* simulate likely attacker movement
-* surface choke points and recommended mitigations
+In the attack graph:
 
-This is the clearest demonstration that **AI accelerates cybersecurity by reducing MTTR**.
+* **nodes** remain files
+* **edges** represent plausible attacker moves between files
+* edges are labeled with attack mechanisms where possible
+
+Example attack edges:
+
+* `api/login.js --(SQL Injection)--> db/db.js`
+* `api/auth.js --(Broken Authentication)--> api/admin.js`
+* `api/user.js --(IDOR)--> api/profile.js`
+
+This makes the graph cyber-specific rather than just dependency-aware.
 
 ---
 
-### Goal-Conditioned Attack Simulation
+### LLM File Risk Scoring
 
-Attack paths are calculated based on **attacker intent**.
+For each file, the LLM assigns structured scores related to one or more attack goals.
 
-Supported attacker goals include:
+Example attack goals:
 
 * data exfiltration
-* ransomware deployment
-* financial fraud
+* privilege escalation
+* ransomware
 * persistence
-* system sabotage
 
-Each goal dynamically changes how the LLM scores risk factors and how the graph engine ranks paths.
+Example scoring factors:
+
+* exploitability
+* privilege gain potential
+* sensitivity of accessed data
+* lateral movement value
+* detectability
+
+Files represent the **value** or **usefulness** of compromise.
 
 ---
 
-### LLM-Based Risk Estimation and Deterministic Path Search
+### Attack Edge Scoring
 
-Using LLM-generated risk factors plus weighted graph traversal, Pathfinder predicts:
+For each plausible attack transition, Pathfinder assigns structured scores such as:
+
+* attack type
+* transition likelihood
+* required attacker capability
+* confidence
+* detection risk
+
+Attack edges represent the **feasibility of movement** between files.
+
+---
+
+### Attack Path Prediction
+
+Using the weighted attack graph, Pathfinder computes:
 
 * most likely attack path
-* top 3 attack paths
-* path risk scores
-* estimated attacker progress
-
-The LLM outputs structured numeric risk values for services or attack steps, and the graph engine deterministically searches over those validated weights.
+* top-k likely attack paths
+* highest-risk intermediate files
+* likely choke points for mitigation
 
 ---
 
-### Defensive Choke Point Identification
+### Explainable Output
 
-Pathfinder identifies nodes that appear across multiple attack paths.
+For the top predicted path, Pathfinder explains:
 
-These nodes represent optimal locations to deploy defenses such as:
-
-* monitoring
-* access restrictions
-* patching
-* network segmentation
-
----
-
-### Explainable Security Intelligence
-
-For each predicted attack path, the system provides:
-
-* human-readable explanation
-* reasoning chain
-* vulnerability contribution
-* suggested mitigations
-
-This transparency is essential for trust, analyst adoption, and executive reporting.
-
----
-
-### Security Copilot Queries
-
-Analysts can ask grounded questions over the graph, such as:
-
-* Which services could lead to database compromise?
-* What is the most likely ransomware path?
-* Which node should we patch first?
-
-This makes Pathfinder feel like an **AI security analyst assistant**, while keeping responses anchored in validated graph outputs and LLM-generated scores.
+* why each file matters
+* what attack goal the path supports
+* which files should be patched, reviewed, or monitored first
 
 ---
 
 # 6. Core Concepts
 
-## Attack Graph
+## File Node
 
-A directed graph where:
+A file in the codebase represented as a graph node.
 
-Nodes represent assets or services.
+## Dependency Edge
 
-Edges represent possible attacker movement.
+A directed structural relationship showing one file depends on, imports, references, or calls into another.
 
-Example:
+## Attack Transition Edge
 
-```
-Internet
-   ↓
-Web Server
-   ↓
-Auth API
-   ↓
-User Database
-```
+A directed attack-oriented relationship showing how compromise or abuse of one file could enable movement into another.
 
----
+Examples include:
 
-## Attacker Entry Point
+* SQL injection
+* broken authentication
+* insecure direct object reference
+* privilege escalation
+* unsafe database access
 
-The initial compromised system.
+## File Risk Weight
 
-Examples:
+A numeric score assigned by the LLM indicating how valuable or useful a file is to an attacker for a specific attack goal.
 
-* internet-facing web server
-* phishing-compromised employee machine
-* vulnerable API endpoint
+## Attack Edge Weight
 
----
-
-## Crown Jewel Assets
-
-High-value targets attackers want to reach.
-
-Examples:
-
-* customer databases
-* payment systems
-* secrets vaults
-* identity systems
-
----
-
-## Attacker Intent
-
-The attacker’s goal, which determines path weighting.
-
-Supported intents:
-
-Data Exfiltration
-Ransomware Deployment
-Persistence
-Financial Fraud
-System Sabotage
-
----
+A numeric score assigned to an attack transition indicating how plausible, easy, or effective that movement is for an attacker.
 
 ## Attack Path
 
-A sequence of nodes representing attacker movement.
-
-Example:
-
-```
-Internet
-→ Web App
-→ Auth API
-→ Admin Console
-```
+A sequence of connected files that represents likely attacker progression.
 
 ---
 
-## Layered Graph Model
+# 7. Product Decisions For MVP
 
-Pathfinder operates across three graph layers:
+## Node Weights: Yes
+
+Node weights are core to the MVP.
+
+Each file should receive LLM-generated risk values.
+
+## Edge Weights: Yes, In The Attack Graph
+
+Edges in the **attack graph** should represent attack risk, not just generic dependencies.
+
+Recommended MVP approach:
+
+* use structural dependencies to generate candidate transitions
+* score **files** for attacker value
+* score **attack edges** for movement feasibility
+
+This keeps the system grounded while making the graph meaningfully security-specific.
+
+Structural relation types still matter, but mainly as evidence or priors for whether an attack edge is possible.
+
+---
+
+# 8. System Requirements
+
+### Inputs
+
+* source code repository
+* optional vulnerability or entry-file input
+* selected attack goal
+
+### Outputs
+
+* structural file graph
+* weighted attack graph
+* top predicted attack path
+* top-k alternative paths
+* key risky files
+* mitigation suggestions
+
+### Non-Functional Requirements
+
+* grounded in real files and dependencies
+* bounded LLM usage
+* deterministic path calculation after scoring
+* explainable output suitable for demo and analyst review
+
+---
+
+# 9. Risk Scoring Model
+
+For each file, Pathfinder asks the LLM to produce structured numeric outputs such as:
 
 ```text
-CodeGraph → Service Graph → Attack Graph
-```
-
-This layered approach is what allows Pathfinder to move from raw code to fast, explainable cyber risk analysis.
-
----
-
-# 7. System Architecture
-
-## Core Components
-
-### CodeGraph Extraction
-
-Converts the codebase into a structured graph of repositories, directories, files, and symbols.
-
-Responsibilities:
-
-* capture dependency structure
-* record symbol usage relationships
-* provide structural truth for downstream inference
-
----
-
-### LLM Service Architecture Engine
-
-Uses the CodeGraph, representative files, dependency summaries, and graph candidates to infer service boundaries and service capabilities.
-
-Responsibilities:
-
-* package graph-backed candidate clusters
-* infer service names and capabilities
-* assign files and symbols to service nodes
-* emit confidence, rationale, and evidence references
-
----
-
-### Service Graph Validation and Construction
-
-Builds a validated service-level dependency graph from cross-service symbol usage and LLM-inferred service membership.
-
-Responsibilities:
-
-* reject invented files, symbols, or services
-* identify service-to-service dependencies
-* resolve overlaps or flag ambiguity
-* weight edges by dependency strength
-* expose architecture for attack reasoning
-
----
-
-### Attack Graph Traversal Engine
-
-Responsible for storing and traversing the weighted attack graph derived from the service graph.
-
-Technologies:
-
-* Python
-* NetworkX
-
-Responsibilities:
-
-* node management
-* edge management
-* graph traversal
-* path search over validated weights
-
----
-
-### LLM Risk Scoring Engine
-
-Generates structured numeric risk values from:
-
-* service metadata
-* selected code files
-* dependency context
-* vulnerability or CVE context
-* attacker goal
-
-Typical outputs include:
-
-* exploitability
-* privilege gain
-* goal alignment
-* downstream potential
-* detection risk
-* confidence score
-* rationale and evidence references
-
-Attacker goals such as `data_exfiltration`, `ransomware`, and `financial_fraud` are included in the scoring prompt and change the resulting weights.
-
----
-
-### LLM Explanation and Mitigation Engine
-
-LLMs are used for:
-
-* summarizing attack paths
-* explaining reasoning
-* generating mitigation advice
-
-LLMs are also used to infer service architecture and risk weights, but final path traversal remains deterministic once those outputs have been validated.
-
----
-
-### Security Copilot and Visualization Dashboard
-
-Provides a visual representation of:
-
-* AI-inferred service architecture
-* service graph
-* predicted attack paths
-* risk scores
-* defensive choke points
-
-It also provides a grounded analyst interface for natural-language security questions over the graph.
-
-Frontend technologies may include:
-
-* React
-* Cytoscape.js
-* D3.js
-
-## Product Design Requirements
-
-### Cost Efficiency
-
-Pathfinder should use LLMs where semantic lift materially improves architecture inference and risk estimation.
-
-To control cost, the system should cache service-boundary outputs and risk scores, re-score only changed or relevant services, and keep path traversal deterministic and inexpensive.
-
-### Scalability
-
-Pathfinder should compress large codebases into service-level abstractions so analysts can reason about systems that are too large to understand manually.
-
-The architecture should support incremental updates, bounded top-k path outputs, and eventually pluggable graph backends for larger environments.
-
-### Security and Trust
-
-Recommendations must be grounded in CodeGraph evidence, validated service-node memberships, and schema-constrained LLM score outputs.
-
-The system should show why a path was predicted, which vulnerability signals mattered, which files contributed to the inferred service boundary, and which architectural edges enabled the result.
-
-### Responsible AI Use
-
-LLMs are used to infer service boundaries and estimate risk, but their outputs must be schema-constrained, validated against the CodeGraph, and reviewable by human analysts.
-
-The LLM should never invent files, symbols, or services that do not exist in the underlying graph, and high-impact recommendations should remain reviewable by humans.
-
-### Flexibility and Agility
-
-The product should support multiple codebases, attacker goals, risk models, and future telemetry sources without redesigning the full system.
-
-This is important both for hackathon feasibility and for long-term productization.
-
----
-
-# 8. Data Model
-
-## Node Schema
-
-Example node attributes:
-
-```
-service_id
-root_directory
-file_count
-symbol_count
-exported_symbol_count
-capabilities
-service_members
-llm_boundary_confidence
-boundary_rationale
-criticality
-internet_exposed
-risk_score
-llm_risk_score
-risk_factors
-risk_rationale
-evidence_files
-scoring_model_version
-vulnerability_signals
-```
-
----
-
-## Edge Schema
-
-Example edge attributes:
-
-```
-source_service
-target_service
-dependency_count
-risk_weight
-reachability
-trust_strength
-segmentation_penalty
-monitoring_level
-```
-
----
-
-## Attacker Profile Schema
-
-Example:
-
-```
-goal
-risk_tolerance
-stealth_preference
-speed_preference
-```
-
-Each profile influences the LLM-generated scoring weights used by the risk engine.
-
----
-
-# 9. Risk Weight Generation Model
-
-The LLM generates structured numeric risk values for each service or attack step using:
-
-* service code and metadata
-* dependency neighborhood
-* vulnerability context
-* attacker goal
-
-Typical score factors include:
-
-```
 exploitability
-+ reachability
-+ privilege_gain
-+ goal_alignment
-+ downstream_potential
-- detection_risk
-- segmentation_penalty
+privilege_gain
+data_access_value
+lateral_movement_value
+detection_risk
+confidence
 ```
 
-These outputs are normalized, bounded, and validated before being used as weights in the attack graph.
+These are combined into a file-level risk score for a chosen attack goal.
 
-Deterministic graph traversal then identifies:
+For each candidate attack edge, Pathfinder also produces structured outputs such as:
 
-* minimum-cost attack path
-* top candidate paths
+```text
+attack_type
+transition_likelihood
+required_capability
+detection_risk
+confidence
+```
+
+For MVP, node scores represent **attacker payoff**, while edge scores represent **attacker movement feasibility**.
+
+Suggested path-cost idea:
+
+```text
+transition_cost(u → v)
+= edge_attack_cost(u, v)
++ hop_penalty
++ (1 - normalized_risk_score(v))
+```
+
+Lower-cost paths are treated as more likely attacker paths.
 
 ---
 
 # 10. Core Workflow
 
-### Step 1: Codebase Ingestion and CodeGraph Extraction
+### Step 1: Ingest Codebase
 
-The source code is converted into a CodeGraph.
+Build a structural file graph from the repository.
 
-### Step 2: LLM Service Boundary Inference
+### Step 2: Select Scenario
 
-The system packages graph-backed candidate clusters and uses an LLM to infer service nodes, boundaries, and capabilities.
+Choose an attack goal and, if known, an entry file or vulnerable file.
 
-### Step 3: Service Graph Validation and Construction
+### Step 3: Derive Attack Transitions
 
-The inferred service nodes are validated against the CodeGraph and assembled into a Service Graph.
+Use structural relationships plus vulnerability patterns to derive plausible attack edges.
 
-### Step 4: Vulnerability Interpretation and LLM Risk Scoring
+### Step 4: Score Files and Attack Edges
 
-Known vulnerabilities or CVEs are translated into structured signals and combined with service code to produce numeric risk weights.
+Use the LLM to assign attack-relevant risk weights to files and attack transitions.
 
-### Step 5: Attacker Entry and Goal Defined
+### Step 5: Run Path Search
 
-User selects or confirms an entry point and attacker objective.
+Use a graph algorithm to compute the most likely attack path and top alternatives.
 
-### Step 6: Attack Path Simulation
+### Step 6: Explain Results
 
-Graph engine calculates attack paths over the validated weighted graph.
-
-### Step 7: Choke Point and Risk Ranking
-
-Paths are ranked by likelihood and defensive leverage.
-
-### Step 8: Explainability Layer
-
-LLM generates explanations, score rationales, and mitigation advice.
-
-### Step 9: Visualization and Copilot Querying
-
-Dashboard displays attack paths, defensive insights, and grounded answers to analyst questions.
+Generate a human-readable explanation and mitigation priorities.
 
 ---
 
@@ -665,48 +363,33 @@ Dashboard displays attack paths, defensive insights, and grounded answers to ana
 
 The hackathon MVP will include:
 
-### AI-Derived Architecture
+### File Graph Extraction
 
-LLM-assisted service-node inference from a bounded demo codebase using CodeGraph-backed candidates.
+Build a graph from repository files and their dependencies.
 
-### Service and Attack Graphs
+### Attack Edge Derivation
 
-Construction of a validated service graph and attack graph from the inferred architecture.
+Derive plausible attack transitions from structurally connected files.
 
-### LLM Risk Scoring
+### LLM File Scoring
 
-Generate numeric risk weights from selected service files, dependency context, CVE context, and attacker goal.
+Score each file for at least 3 attack goals.
 
-### Attack Simulation
+### LLM Attack Edge Scoring
 
-Single entry point with 3 attacker goals.
+Score candidate attack transitions with attack-type labels and likelihood values.
 
-### Instant Vulnerability Impact Analysis
+### Path Search
 
-Input a vulnerability or affected service and immediately surface likely attack paths and at-risk assets.
+Compute the top 3 likely attack paths from a chosen starting point.
 
-### Path Prediction
+### Explanation Layer
 
-Compute top 3 attack paths using deterministic traversal over LLM-generated weights.
+Explain why the path was selected and what the key risky files are.
 
-### Visualization
+### Lightweight Visualization
 
-Interactive graph showing predicted paths.
-
-### Explanation Engine
-
-LLM-generated explanation of attack reasoning, service-boundary rationale, and mitigation recommendations.
-
-### Security Copilot
-
-Grounded natural-language questions over the graph for demo scenarios.
-
-### Demo-Ready Storytelling
-
-The MVP should support two levels of explanation:
-
-* a **10-second viewer** immediately sees the vulnerability input, attack path, and first mitigation recommendation
-* a **deeper technical viewer** can inspect architecture derivation, graph reasoning, and why the recommendation is justified
+Show a graph or path output that is understandable in a short demo.
 
 ---
 
@@ -714,157 +397,77 @@ The MVP should support two levels of explanation:
 
 ### MTTR Reduction
 
-Measure end-to-end vulnerability impact analysis time.
+Measure time required to move from “vulnerability or attack goal identified” to “top likely path and first mitigation suggestion shown.”
 
-Target benchmark for representative scenarios:
+### Path Quality
 
-| Task | Manual | Pathfinder |
-| --- | --- | --- |
-| Understand architecture | 30–60 min | seconds |
-| Trace dependencies | 20–40 min | seconds |
-| Identify attack paths | 30–60 min | seconds |
-| Generate mitigation plan | 15–30 min | seconds |
+Validate whether top predicted paths look plausible to a technical reviewer.
 
-Goal:
+### Explainability
 
-Reduce representative analysis from **hours to under 10 seconds** for bounded demo scenarios.
+Ensure each predicted path can be explained in terms of real files, real structural dependencies, real attack transitions, and real scoring rationale.
 
----
+### MVP Feasibility
 
-### Path Prediction Accuracy
-
-Validate predicted paths against known attack scenarios.
-
----
-
-### Scoring Quality and Consistency
-
-Measure whether LLM-generated service boundaries and risk scores are stable, schema-valid, and reviewer-aligned.
-
-Signals include:
-
-* service nodes map only to real files and symbols
-* risk outputs are numeric, bounded, and parseable
-* repeated runs produce acceptably similar rankings
-
----
-
-### Analyst Productivity
-
-Measure reduction in time spent prioritizing vulnerabilities.
-
----
-
-### Responsible AI Quality
-
-Measure whether outputs remain grounded in CodeGraph evidence and validated graph structure.
-
-Signals include:
-
-* inferred service nodes reference actual files and symbols
-* explanations reference actual nodes and edges
-* mitigation advice maps to identified choke points
-* no unsupported architecture or score claims are introduced by the LLM
+The system should work on a bounded demo repository without requiring runtime telemetry or service discovery.
 
 ---
 
 # 13. Example Scenario
 
-Initial Signal:
-
-```
-CVE-2026-XXXX affects Auth Service
-```
-
-Derived Architecture Context:
-
-```
-Internet → Web Service → Auth Service → Billing Service → Payment DB
-```
-
-Attacker Goal:
-
-```
-Data Exfiltration
-```
-
-Predicted Attack Path:
-
-```
-Internet
-→ Web Service
-→ Auth Service
-→ Billing Service
-→ Payment DB
-```
-
-System Explanation:
-
-The LLM infers an authentication service and billing service from CodeGraph-backed file clusters, then scores the Auth Service highly for exploitability and privilege gain given the CVE context. The weighted service graph shows that the web service depends on auth, auth has privileged access to billing workflows, and billing reaches payment data. Pathfinder therefore ranks the path from internet-facing web entry to payment data as a likely data-exfiltration route.
-
-Recommended Mitigation:
-
-* patch the Auth Service vulnerability
-* add monitoring on the Billing API boundary
-* restrict Payment DB access from non-essential services
-* prioritize the Auth Service as the first remediation point
-
-Expected Analysis Time:
+Input:
 
 ```text
-seconds
+Attack goal: privilege escalation
+Entry file: auth_handler.py
 ```
 
----
+Predicted path:
 
-# 14. Roadmap and Next Iterations
+```text
+auth_handler.py
+--(session abuse)--> session_manager.py
+--(broken authorization)--> admin_access.py
+--(privilege propagation)--> permissions_store.py
+```
 
-Potential future capabilities include:
+Why this path ranks highly:
 
-### Next Iteration 1: Live Vulnerability Intake
+* `auth_handler.py` is exposed and likely attacker-reachable
+* `session_manager.py` handles trust and identity state
+* `admin_access.py` represents privilege escalation value
+* `permissions_store.py` is a high-value authorization target
+* the attack edges describe plausible attacker movement, not just file imports
 
-Integrate CVE feeds or analyst-submitted advisories and trigger immediate impact analysis.
+Suggested mitigation:
 
-### Next Iteration 2: Better Architecture Inference
-
-Improve LLM service-boundary inference in large monoliths and messy repositories.
-
-### Next Iteration 3: Scoring Calibration and Cost Optimization
-
-Improve prompt design, caching, confidence calibration, and reviewer feedback loops for LLM-generated risk weights.
-
-### Next Iteration 4: Runtime Context
-
-Incorporate tracing, API gateway, and service-mesh telemetry.
-
-### Next Iteration 5: Analyst Feedback Loop
-
-Allow analysts to confirm, reject, and refine predicted paths to improve prioritization quality.
-
-### Next Iteration 6: Autonomous Defense
-
-Trigger controlled mitigation workflows such as ticket creation, monitoring updates, or policy recommendations.
-
-### Next Iteration 7: Agentic Security Monitoring
-
-Extend protection to internal AI agents and agent-to-agent trust paths.
-
-### Next Iteration 8: Simulation and Training Mode
-
-Run full cyber attack simulations for tabletop exercises and training.
+* review and harden `auth_handler.py`
+* inspect privilege checks in `admin_access.py`
+* add monitoring around authorization-sensitive paths
 
 ---
 
-# 15. Strategic Value
+# 14. Future Enhancements
 
-Pathfinder transforms vulnerability management from:
+Potential future extensions after the file-level MVP:
 
-**"What vulnerabilities exist?"**
+* service-level graph abstraction
+* runtime telemetry enrichment
+* richer edge weighting
+* vulnerability-to-file auto-mapping
+* attack-profile libraries
+* analyst copilot interface
 
-to
+---
 
-**"How would an attacker actually use them?"**
+# 15. Summary
 
-By inferring architecture from CodeGraph evidence, generating risk weights from service code, predicting attack paths, and explaining defensive choke points, the system enables organizations to **prioritize security where it matters most**.
+Pathfinder's reduced-scope MVP focuses on one strong and buildable capability:
 
-The result is faster detection, faster response, stronger resilience against modern cyber threats, and a clear demonstration that **AI can reduce MTTR by compressing hours of security analysis into seconds**.
+> Build a structural file graph, derive attack-transition edges, score files and transitions for attacker usefulness, and calculate the most likely path of attack through the codebase.
+
+More precisely, Pathfinder:
+
+> builds a structural file graph, derives attack-transition edges between files, scores nodes and edges for attacker utility, and ranks the most likely attack path through the application.
+
+This is a much tighter and more achievable first version than full service inference, while still clearly demonstrating how AI can accelerate cyber threat analysis.
