@@ -1,5 +1,9 @@
 # Pathfinder Architecture
 
+For the shipped implementation details of the current structural-only phase, see:
+
+* `docs/STRUCTURAL_GRAPH_EXTRACTION.md`
+
 ## Overview
 
 Pathfinder's MVP uses a **file-level attack graph**.
@@ -25,6 +29,26 @@ This is the right MVP shape because it is:
 * easier to explain and demo
 * extensible toward richer future models
 
+## Current implementation status
+
+The repository currently implements the **structural graph foundation** of this architecture.
+
+Implemented now:
+
+* repository ingestion through CodeGraph / `ucp-content`
+* projection from CodeGraph's repository/file/symbol graph into a file-to-file structural graph
+* deterministic JSON artifact generation
+* provenance-rich structural edges and projection diagnostics
+* a minimal frontend for graph viewing
+
+Not yet implemented:
+
+* attack-transition derivation
+* LLM file scoring
+* LLM edge scoring
+* deterministic search over attack edges
+* mitigation ranking
+
 ---
 
 # High-Level Architecture
@@ -33,25 +57,28 @@ This is the right MVP shape because it is:
 Codebase
                     │
                     ▼
-           File Graph Extraction
+      CodeGraph Repository Ingestion     ← implemented
                     │
                     ▼
-          Structural File Graph
+    File-Level Structural Projection     ← implemented
                     │
                     ▼
-         Attack Transition Derivation
+   Structural Graph JSON + Diagnostics   ← implemented
                     │
                     ▼
-      LLM File + Attack Edge Scoring
+         Minimal Graph Viewer UI         ← implemented
                     │
                     ▼
-            Weighted Attack Graph
+         Attack Transition Derivation    ← later phase
                     │
                     ▼
-         Deterministic Attack Path Search
+      LLM File + Attack Edge Scoring     ← later phase
                     │
                     ▼
-      Top Path / Top-K Paths / Explanations
+            Weighted Attack Graph        ← later phase
+                    │
+                    ▼
+         Deterministic Attack Search     ← later phase
 ```
 
 Core idea:
@@ -94,6 +121,32 @@ Benefits:
 
 The system converts a repository into a directed graph of files and their relationships.
 
+### Current implementation notes
+
+The current implementation uses CodeGraph as the extraction backbone and then performs a Pathfinder-owned projection layer on top of it.
+
+Current emitted structural relationship types are derived from CodeGraph relations such as:
+
+* `imports`
+* `imports_symbol`
+* `reexports`
+* `uses_symbol`
+* `extends`
+* `implements`
+
+These are collapsed into Pathfinder structural edges such as:
+
+* `imports`
+* `calls`
+* `references`
+
+The extractor also:
+
+* drops self-edges
+* tracks omitted relations in diagnostics
+* preserves provenance per structural edge
+* emits summary counts that reconcile with the serialized artifact
+
 ### Node type
 
 * source file
@@ -106,7 +159,7 @@ The system converts a repository into a directed graph of files and their relati
 * includes
 * uses shared utility
 
-In practice, the initial graph can be derived from CodeGraph or another code indexing layer, then collapsed to **file-to-file structural edges**.
+In practice, the initial graph is currently derived from CodeGraph and then collapsed to **file-to-file structural edges**.
 
 ### Output
 
@@ -122,11 +175,21 @@ This graph is the structural foundation of Pathfinder.
 
 It does **not** yet say how attackers move. It only says which file relationships exist in code.
 
+The current structural artifact also includes:
+
+* `summary`
+* `diagnostics`
+* empty `attack_edges`
+
+This keeps the persisted output aligned with later phases while remaining structurally grounded today.
+
 ---
 
 ## 2. Attack Transition Derivation
 
 The system derives an **attack graph** from the structural file graph.
+
+This layer is **not implemented yet**. It remains the next major architecture step after the structural graph foundation.
 
 In this graph:
 
@@ -172,6 +235,8 @@ Attack goals, explicit starting files, vulnerability inputs, and analyst hints c
 ## 4. LLM File and Edge Analysis Engine
 
 This component assigns structured node-level value to files and structured traversal cost to attack transitions.
+
+This entire section describes the intended later-phase architecture. It is not yet implemented in the repository.
 
 ### Bounded call pattern
 

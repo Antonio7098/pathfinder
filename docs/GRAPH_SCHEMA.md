@@ -1,8 +1,12 @@
 # Graph Schema Proposal
 
+For the concrete shipped structural artifact shape and extraction behavior, see:
+
+* `docs/STRUCTURAL_GRAPH_EXTRACTION.md`
+
 ## Purpose
 
-This document proposes the canonical graph schema for Pathfinder's MVP.
+This document proposes the canonical graph schema for Pathfinder's MVP and notes the subset that is implemented today.
 
 It is derived from:
 
@@ -15,6 +19,18 @@ The goal is to define a graph model that is:
 * expressive enough for attack-transition reasoning
 * simple enough for an MVP implementation
 * compatible with deterministic path search after scoring
+
+## Current implementation status
+
+The repository currently implements the **structural subset** of this schema:
+
+* `file` nodes
+* `structural_edges`
+* empty `attack_edges`
+* `summary`
+* `diagnostics`
+
+Attack-edge materialization and LLM scoring remain later phases.
 
 ---
 
@@ -59,6 +75,8 @@ Each source file in the repository is represented as one node.
 * `in_degree_structural`: inbound structural edge count
 * `out_degree_structural`: outbound structural edge count
 * `tags`: optional labels such as `auth`, `admin`, `db`, `api`, `storage`
+
+The currently implemented structural artifact includes these structural count fields today.
 
 ### Recommended security scoring fields
 
@@ -109,11 +127,25 @@ Structural edges represent code relationships extracted from the repository.
 * `includes`
 * `shared_utility`
 
+Currently emitted in implementation:
+
+* `imports`
+* `calls`
+* `references`
+
+`includes` and `shared_utility` remain allowed schema values for future extractor coverage.
+
 ### Recommended evidence fields
 
 * `evidence`: short extracted proof, e.g. import symbol, call site, include target
 * `extractor`: source of extraction, e.g. `codegraph`, `ast`, `indexer`
 * `confidence`: normalized `0..1`
+
+Current implementation also includes:
+
+* `evidence_relations`: aggregated raw relation names used to build the edge
+* `evidence_count`: number of preserved provenance items
+* `provenance`: detailed structural evidence records
 
 Structural edges should never be invented by the LLM.
 
@@ -172,9 +204,12 @@ The graph can be serialized as a document with separate node and edge collection
 {
   "graph_id": "repo:pathfinder",
   "version": "mvp-v1",
+  "repo_path": "/path/to/repo",
   "nodes": [],
   "structural_edges": [],
-  "attack_edges": []
+  "attack_edges": [],
+  "summary": {},
+  "diagnostics": {}
 }
 ```
 
@@ -213,8 +248,45 @@ The graph can be serialized as a document with separate node and edge collection
   "target": "api/admin.js",
   "relationship_type": "calls",
   "evidence": "auth middleware invokes admin route guard",
-  "extractor": "ast",
-  "confidence": 0.93
+  "extractor": "codegraph",
+  "confidence": 1.0,
+  "evidence_relations": ["uses_symbol"],
+  "evidence_count": 1,
+  "provenance": [
+    {
+      "raw_relation": "uses_symbol",
+      "extractor": "codegraph",
+      "source_block_id": "blk_source",
+      "target_block_id": "blk_target",
+      "source_logical_key": "symbol:api/auth.js::guard",
+      "target_logical_key": "symbol:api/admin.js::admin_route",
+      "source_symbol": "guard",
+      "target_symbol": "admin_route"
+    }
+  ]
+}
+```
+
+### Example summary and diagnostics
+
+```json
+{
+  "summary": {
+    "file_count": 79,
+    "structural_edge_count": 264,
+    "attack_edge_count": 0,
+    "evidence_count": 710,
+    "files_by_language": {"python": 79},
+    "edges_by_relationship_type": {"calls": 86, "imports": 176, "references": 2}
+  },
+  "diagnostics": {
+    "candidate_relation_count": 958,
+    "emitted_edge_count": 264,
+    "deduplicated_evidence_count": 0,
+    "dropped_self_edges": 59,
+    "dropped_missing_targets": 0,
+    "omitted_relations": {"exports": 189}
+  }
 }
 ```
 
@@ -252,6 +324,9 @@ To keep the MVP reliable, enforce these rules:
 6. `id` and `path` for file nodes must be stable across runs for the same repository state.
 7. Structural extraction is authoritative for graph connectivity; LLMs score and label but do not create unsupported structural relationships.
 8. Attack edges may only be materialized from existing structural edges analyzed by the per-edge LLM pass.
+9. `summary.file_count` must match serialized node count.
+10. `summary.structural_edge_count` must match serialized structural edge count.
+11. Structural edges must reference existing file node ids.
 
 ---
 
@@ -288,7 +363,7 @@ This matches the architecture guidance:
 
 ### Minimal MVP
 
-Implement only:
+Architectural MVP target state:
 
 * `file` nodes
 * `structural` edges
@@ -298,6 +373,15 @@ Implement only:
 * one LLM call per structural edge to derive attack edges and `edge_attack_cost`
 * node risk for target files
 * edge traversal costs and rationales
+
+Currently shipped subset:
+
+* `file` nodes
+* `structural` edges
+* empty `attack_edges`
+* `summary`
+* `diagnostics`
+* provenance-rich structural evidence
 
 ### Later extensions
 
