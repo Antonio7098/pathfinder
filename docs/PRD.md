@@ -117,6 +117,24 @@ The system:
 
 The result is a **live, explainable security model** that moves teams from reactive investigation to proactive response.
 
+### Immediate Value Delivered by the MVP
+
+Even a bounded first version of Pathfinder delivers practical value:
+
+* it shortens triage for a newly disclosed vulnerability
+* it gives analysts an architectural view without manual code archaeology
+* it prioritizes the first mitigation action instead of producing another long list
+* it creates a demoable foundation for a larger autonomous defense roadmap
+
+### Why This Product Is Feasible
+
+The MVP is intentionally conservative in scope:
+
+* architecture is derived from a bounded codebase rather than every possible enterprise system
+* attack reasoning is deterministic rather than fully generative
+* LLM usage is focused on interpretation, explanation, and mitigation guidance
+* the system can show immediate value before requiring deep runtime integrations
+
 ---
 
 # 4. Target Users
@@ -135,6 +153,26 @@ Responsible for infrastructure design and risk management.
 
 CISOs and Security Leadership
 Require strategic visibility into systemic risk.
+
+### User Outcomes
+
+SOC Analyst outcomes:
+
+* know which path matters first
+* know what to patch or monitor first
+* reduce time spent manually tracing service dependencies
+
+Security Architect outcomes:
+
+* identify risky trust boundaries and choke points
+* evaluate segmentation and hardening opportunities
+* reason about system-wide blast radius
+
+Leadership outcomes:
+
+* understand why a threat matters
+* see a defensible prioritization narrative
+* justify investment in proactive cyber defense
 
 ---
 
@@ -444,6 +482,38 @@ Frontend technologies may include:
 * Cytoscape.js
 * D3.js
 
+## Product Design Requirements
+
+### Cost Efficiency
+
+Pathfinder should use LLMs only where semantic interpretation adds material value.
+
+Core graph construction and path ranking should remain deterministic so the system can analyze repeatedly without paying LLM costs for every reasoning step.
+
+### Scalability
+
+Pathfinder should compress large codebases into service-level abstractions so analysts can reason about systems that are too large to understand manually.
+
+The architecture should support incremental updates, bounded top-k path outputs, and eventually pluggable graph backends for larger environments.
+
+### Security and Trust
+
+Recommendations must be grounded in code-derived structure and deterministic graph results.
+
+The system should show why a path was predicted, which vulnerability signals mattered, and which architectural edges enabled the result.
+
+### Responsible AI Use
+
+LLMs should not be the sole source of truth for attacker path prediction.
+
+AI is used to interpret natural-language inputs and explain graph-derived outputs, while high-impact decisions remain reviewable by human analysts.
+
+### Flexibility and Agility
+
+The product should support multiple codebases, attacker goals, risk models, and future telemetry sources without redesigning the full system.
+
+This is important both for hackathon feasibility and for long-term productization.
+
 ---
 
 # 8. Data Model
@@ -594,6 +664,13 @@ LLM-generated explanation of attack reasoning and mitigation recommendations.
 
 Grounded natural-language questions over the graph for demo scenarios.
 
+### Demo-Ready Storytelling
+
+The MVP should support two levels of explanation:
+
+* a **10-second viewer** immediately sees the vulnerability input, attack path, and first mitigation recommendation
+* a **deeper technical viewer** can inspect architecture derivation, graph reasoning, and why the recommendation is justified
+
 ---
 
 # 12. Success Metrics
@@ -626,6 +703,18 @@ Validate predicted paths against known attack scenarios.
 ### Analyst Productivity
 
 Measure reduction in time spent prioritizing vulnerabilities.
+
+---
+
+### Responsible AI Quality
+
+Measure whether outputs remain grounded in deterministic graph evidence.
+
+Signals include:
+
+* explanations reference actual nodes and edges
+* mitigation advice maps to identified choke points
+* no unsupported architecture claims are introduced by the LLM
 
 ---
 
@@ -678,27 +767,37 @@ seconds
 
 ---
 
-# 14. Future Enhancements
+# 14. Roadmap and Next Iterations
 
 Potential future capabilities include:
 
-Automatic Architecture Discovery
+### Next Iteration 1: Live Vulnerability Intake
+
+Integrate CVE feeds or analyst-submitted advisories and trigger immediate impact analysis.
+
+### Next Iteration 2: Better Architecture Discovery
+
 Improve service discovery in large monoliths and messy repositories.
 
-Real-Time Threat Feeds
-Integrate CVE databases and threat intelligence.
+### Next Iteration 3: Runtime Context
 
-Runtime Integration
 Incorporate tracing, API gateway, and service-mesh telemetry.
 
-Autonomous Defense
-Trigger automatic security responses.
+### Next Iteration 4: Analyst Feedback Loop
 
-Agentic Security Monitoring
-Extend protection to internal AI agents.
+Allow analysts to confirm, reject, and refine predicted paths to improve prioritization quality.
 
-Simulation Mode
-Run full cyber attack simulations for training.
+### Next Iteration 5: Autonomous Defense
+
+Trigger controlled mitigation workflows such as ticket creation, monitoring updates, or policy recommendations.
+
+### Next Iteration 6: Agentic Security Monitoring
+
+Extend protection to internal AI agents and agent-to-agent trust paths.
+
+### Next Iteration 7: Simulation and Training Mode
+
+Run full cyber attack simulations for tabletop exercises and training.
 
 ---
 

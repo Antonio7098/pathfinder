@@ -93,6 +93,40 @@ What is normally a manual workflow — reading advisories, searching the codebas
 
 ---
 
+# Architecture Quality Goals
+
+A strong cybersecurity platform is not judged only on accuracy. Pathfinder's architecture is intentionally designed around the following quality attributes.
+
+## Cost Efficiency
+
+* deterministic graph computation performs the heavy reasoning work
+* LLM calls are reserved for semantically difficult tasks such as CVE interpretation and explanation
+* architecture extraction and graph artifacts can be cached and reused across many analyses
+
+## Scalability
+
+* the system compresses symbol-level complexity into service-level reasoning
+* incremental recomputation can be used when only part of a codebase changes
+* the graph model can start with NetworkX for MVP and evolve to larger backends if needed
+
+## Security and Robustness
+
+* graph outputs are grounded in code-derived evidence
+* high-impact actions are recommendation-first rather than automatically enforced in the MVP
+* prompts and outputs can be bounded to avoid leaking unnecessary sensitive context
+
+## Flexibility and Agility
+
+* new attacker goals can be added without redesigning the pipeline
+* new input sources such as CVE feeds and runtime telemetry can be attached incrementally
+* model providers can be swapped without changing the deterministic reasoning core
+
+## Novelty
+
+The technical novelty is the combination of **code-derived architecture inference**, **attack graph reasoning**, and **AI explanation** in a single workflow optimized for cyber response time.
+
+---
+
 # Core Components
 
 ## 1. CodeGraph Extraction
@@ -569,6 +603,15 @@ Which node should we patch first?
 
 The copilot does not invent topology. It answers by retrieving evidence from the CodeGraph, Service Graph, and Attack Graph, then uses the LLM to produce concise analyst-facing responses.
 
+## Responsible AI Guardrails
+
+To ensure responsible use of AI, Pathfinder follows these constraints:
+
+* the LLM does not invent graph structure or replace deterministic attack-path computation
+* every explanation should be traceable to known nodes, edges, and vulnerability signals
+* autonomous mitigation is out of scope for the MVP unless explicitly reviewed by a human
+* prompts should minimize unnecessary sensitive source-code exposure when summaries are sufficient
+
 ---
 
 # 8. Security Insights
@@ -620,6 +663,17 @@ Each service receives a risk profile including:
 * attack surface
 * dependency fan-out
 * sensitive capability exposure
+
+---
+
+## Why This Is Immediately Useful
+
+Even before full runtime integrations, Pathfinder already helps teams:
+
+* understand architecture faster
+* prioritize vulnerabilities with real path context
+* identify the first mitigation point to investigate
+* communicate technical risk to both engineers and leadership
 
 ---
 
@@ -703,6 +757,19 @@ This hybrid model is what gives Pathfinder:
 * fast analysis
 * consistent results
 * explainable decisions
+
+---
+
+## Conservative but Extensible Implementation
+
+The MVP uses a conservative implementation path:
+
+* bounded codebase ingestion
+* deterministic heuristics for service discovery
+* NetworkX for graph traversal
+* LLM calls only for interpretation and explanation
+
+This keeps the first version feasible while leaving clear room for enterprise hardening, larger graph stores, and more autonomous workflows.
 
 ---
 
