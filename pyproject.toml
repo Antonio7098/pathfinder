@@ -18,5 +18,8 @@ dev = ["pytest>=7,<9"]
 [project.scripts]
 pathfinder = "pathfinder.cli:main"
 
+[tool.setuptools.package-data]
+"pathfinder.viewer.assets" = ["*.html", "*.css", "*.js"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

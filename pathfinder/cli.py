@@ -10,6 +10,7 @@ from pathlib import Path
 from pathfinder.errors import PathfinderError
 from pathfinder.observability.logging import configure_logging, get_logger
 from pathfinder.structural.service import StructuralExtractionRequest, StructuralExtractionService
+from pathfinder.viewer.server import GraphViewerConfig, serve_graph_viewer
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -23,6 +24,12 @@ def build_parser() -> argparse.ArgumentParser:
     build.add_argument("--include-hidden", action="store_true", help="Include hidden files during extraction")
     build.add_argument("--strict-parse", action="store_true", help="Fail extraction on parse errors")
     build.add_argument("--verbose", action="store_true", help="Enable debug logging")
+
+    viewer = subparsers.add_parser("serve-graph-viewer", help="Serve a minimal frontend for viewing Pathfinder graph artifacts")
+    viewer.add_argument("--graph", type=Path, default=None, help="Optional Pathfinder structural graph artifact to expose at /api/graph")
+    viewer.add_argument("--host", default="127.0.0.1", help="Host interface to bind")
+    viewer.add_argument("--port", type=int, default=8000, help="Port to bind")
+    viewer.add_argument("--verbose", action="store_true", help="Enable debug logging")
     return parser
 
 
@@ -32,25 +39,30 @@ def main(argv: list[str] | None = None) -> int:
     configure_logging(verbose=args.verbose)
     logger = get_logger("pathfinder")
 
-    if args.command != "build-structural-graph":
-        parser.error(f"Unsupported command: {args.command}")
-
-    service = StructuralExtractionService(logger)
-    request = StructuralExtractionRequest(
-        repo_path=args.repo,
-        output_path=args.output,
-        raw_codegraph_output_path=args.raw_codegraph_output,
-        include_hidden=args.include_hidden,
-        continue_on_parse_error=not args.strict_parse,
-    )
     try:
-        result = service.run(request)
+        if args.command == "build-structural-graph":
+            service = StructuralExtractionService(logger)
+            request = StructuralExtractionRequest(
+                repo_path=args.repo,
+                output_path=args.output,
+                raw_codegraph_output_path=args.raw_codegraph_output,
+                include_hidden=args.include_hidden,
+                continue_on_parse_error=not args.strict_parse,
+            )
+            result = service.run(request)
+            print(json.dumps(result.artifact.summary.model_dump(mode="json"), sort_keys=True))
+            return 0
+
+        if args.command == "serve-graph-viewer":
+            return serve_graph_viewer(
+                GraphViewerConfig(graph_path=args.graph, host=args.host, port=args.port),
+                logger,
+            )
+
+        parser.error(f"Unsupported command: {args.command}")
     except PathfinderError as exc:
         print(str(exc), file=sys.stderr)
         return 1
-
-    print(json.dumps(result.artifact.summary.model_dump(mode="json"), sort_keys=True))
-    return 0
 
 
 if __name__ == "__main__":  # pragma: no cover

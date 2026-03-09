@@ -1,5 +1,9 @@
 # Product Requirements Document (PRD)
 
+For the shipped implementation details of the current structural-only phase, see:
+
+* `docs/STRUCTURAL_GRAPH_EXTRACTION.md`
+
 ## Pathfinder – File-Level AI Attack Path Prediction
 
 ---
@@ -26,6 +30,26 @@ Instead of inferring services, environments, and runtime topology, Pathfinder st
 * a graph algorithm calculates the most likely attack path
 
 This keeps the system grounded, demoable, and technically credible for an MVP.
+
+## Current shipped slice
+
+The currently shipped implementation covers the **structural graph phase** only.
+
+Implemented now:
+
+* repository ingestion via CodeGraph / `ucp-content`
+* file-level structural graph extraction
+* deterministic JSON artifact generation
+* provenance-rich structural edges
+* diagnostics and summary metadata
+* a minimal frontend for graph inspection
+
+Not yet shipped:
+
+* per-file LLM target/risk analysis
+* per-structural-edge attack-edge derivation
+* deterministic attack-path search
+* mitigation ranking and explanation over attack paths
 
 ---
 
@@ -118,6 +142,8 @@ Pathfinder builds a graph where:
 * **nodes** = source files
 * **structural edges** = dependency or reference relationships between files
 
+This is the phase that is currently implemented.
+
 Example file nodes:
 
 * `auth.py`
@@ -127,11 +153,21 @@ Example file nodes:
 
 This graph is the structural substrate, not yet the full attack model.
 
+Current structural artifact fields also include:
+
+* `summary`
+* `diagnostics`
+* empty `attack_edges`
+
+Structural edges preserve provenance back to the underlying extraction evidence.
+
 ---
 
 ### Attack Transition Derivation
 
 Pathfinder derives an attack graph from the structural file graph.
+
+This is planned but not yet implemented.
 
 In the attack graph:
 
@@ -163,6 +199,8 @@ Minimum outputs:
 
 Optional supporting sub-scores can still be retained, but the canonical node-level outputs are target classification and risk. Files represent the **value** or **usefulness** of compromise at the destination of a path.
 
+This is planned but not yet implemented.
+
 ---
 
 ### Attack Edge Scoring
@@ -178,6 +216,8 @@ For each structural edge, Pathfinder performs one LLM call to decide whether a p
 
 Attack edges represent the **feasibility and cost of movement** between files. If no plausible movement exists, no attack edge is emitted for that structural relationship.
 
+This is planned but not yet implemented.
+
 ---
 
 ### Attack Path Prediction
@@ -190,6 +230,8 @@ Using the weighted attack graph, Pathfinder computes:
 * highest-risk intermediate files
 * likely choke points for mitigation
 
+This is planned but not yet implemented.
+
 ---
 
 ### Explainable Output
@@ -199,6 +241,8 @@ For the top predicted path, Pathfinder explains:
 * why each file matters
 * why the path is security-significant
 * which files should be patched, reviewed, or monitored first
+
+Current explainability is limited to the structural layer: file nodes, structural edges, provenance, and diagnostics.
 
 ---
 
@@ -274,7 +318,15 @@ For traversal semantics, node risk belongs on target nodes, while traversal cost
 
 ### Outputs
 
-* structural file graph
+Current shipped outputs:
+
+* structural file graph JSON
+* structural graph summary and diagnostics
+* optional raw CodeGraph artifact
+* minimal graph viewer
+
+Later-phase outputs:
+
 * weighted attack graph
 * top predicted attack path
 * top-k alternative paths
@@ -287,6 +339,8 @@ For traversal semantics, node risk belongs on target nodes, while traversal cost
 * bounded LLM usage
 * deterministic path calculation after scoring
 * explainable output suitable for demo and analyst review
+
+The shipped structural phase already satisfies the first and fourth of these at the structural layer by producing deterministic, provenance-rich, evidence-backed graph artifacts.
 
 ---
 

@@ -93,18 +93,79 @@ Recommended action:
 
 ## Repository contents
 
-This repository is currently documentation-first.
+This repository now contains a working **structural graph extraction slice** for Pathfinder, alongside the broader product and architecture docs for later phases.
 
 Key docs:
 
-* `docs/PRD.md` — product framing, MVP scope, success metrics, and examples
-* `docs/ARCHITECTURE.md` — technical design, graph pipeline, and AI/deterministic reasoning model
+* `docs/PRD.md` — product framing, MVP scope, shipped structural phase, and later phases
+* `docs/ARCHITECTURE.md` — technical design, current structural architecture, and later attack-graph layers
+* `docs/GRAPH_SCHEMA.md` — schema guidance for the current structural artifact and later attack-graph extensions
+* `docs/STRUCTURAL_GRAPH_EXTRACTION.md` — implementation-focused reference for the shipped structural graph phase
+
+## Current repository structure
+
+Current top-level layout:
+
+* `pathfinder/` — Python package
+  * `adapters/` — CodeGraph integration and typed raw extractor models
+  * `structural/` — structural graph models, projection, I/O, and service layer
+  * `viewer/` — minimal frontend assets and HTTP server
+  * `observability/` — structured logging helpers
+  * `cli.py` — CLI entrypoint
+  * `errors.py` — error taxonomy
+* `tests/` — fixture repos and automated tests
+* `docs/` — product, architecture, schema, and implementation docs
+* `ops/` — plans, reports, reviews, rubric assets, and operational reference material
+* `AGENTS.md` — canonical coding-agent instructions
+* `pyproject.toml` — packaging and test configuration
 
 ## Current status
 
-This repo currently contains the product and architecture definition for Pathfinder.
+Pathfinder has now shipped its **structural graph foundation**.
 
-The implementation goal is to demonstrate that AI can compress a workflow that normally takes analysts **hours** into **seconds** for bounded cyber threat analysis scenarios.
+Implemented today:
+
+* repository ingestion via CodeGraph / `ucp-content`
+* file-level structural graph projection
+* deterministic JSON artifact generation
+* provenance-rich structural edges and diagnostics
+* a minimal frontend for viewing structural graph artifacts
+
+Still planned for later phases:
+
+* per-file LLM target/risk analysis
+* per-structural-edge attack-edge derivation
+* deterministic path ranking over attack edges
+* mitigation and choke-point recommendations
+
+## Current implementation slice
+
+Pathfinder now includes:
+
+* structural graph extraction on top of CodeGraph
+* deterministic JSON artifact generation
+* a minimal frontend for viewing structural graph artifacts
+* structured logging, explicit error taxonomy, and fail-fast artifact validation
+* tested fixtures plus real-repository validation
+
+Example commands:
+
+* `python -m pathfinder.cli build-structural-graph --repo <repo> --output structural_graph.json`
+* `python -m pathfinder.cli serve-graph-viewer --graph structural_graph.json`
+
+The structural artifact currently includes:
+
+* `file` nodes
+* `structural_edges`
+* empty `attack_edges`
+* `summary`
+* `diagnostics`
+
+Structural edges preserve provenance back to underlying CodeGraph evidence.
+
+For implementation detail, relation mapping, diagnostics, invariants, and commands, see:
+
+* `docs/STRUCTURAL_GRAPH_EXTRACTION.md`
 
 ## Positioning
 
@@ -112,12 +173,14 @@ Pathfinder can be described in one sentence as:
 
 > Pathfinder builds a structural file graph, uses one LLM pass per file to assign `target_flag` and target risk, uses one LLM pass per structural edge to derive attack edges and traversal cost, and then ranks likely attacker paths deterministically.
 
+Today, the implemented slice is the **first clause of that vision**: building and inspecting the structural file graph.
+
 ## Next steps
 
 Likely next implementation milestones:
 
-* build repository and structural-edge ingestion
 * implement per-file target/risk analysis
 * implement per-structural-edge attack-edge generation
 * add deterministic path search over attack edges
+* expand the viewer from structural inspection toward path explanation
 * add a simple dashboard / copilot demo
