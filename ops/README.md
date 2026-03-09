@@ -12,6 +12,11 @@ This directory holds operational notes, reference material, plans, and execution
 
 ## Current notable documents
 
+- `ops/VS-rubric - Sheet1.csv` — tracked text version of the VS rubric
+- `ops/VS-rubric.xlsx` — spreadsheet version of the VS rubric
 - `ops/structural-graph-extraction-plan.md` — implementation plan for the structural graph phase
 - `ops/reports/structural-graph-extraction-execution-report.md` — execution report for the completed structural graph phase
+- `ops/reviews/agent-vs-rubric-review-instructions.md` — instructions for agents reviewing work against the VS rubric
+- `ops/reviews/templates/vs-rubric-review-template.md` — reusable template for rubric-based reviews
+- `ops/reviews/structural-graph-extraction-vs-rubric-review.md` — completed rubric review for the structural graph phase
 - `ops/principles.md` — supporting principles doc derived from Pathfinder documentation
