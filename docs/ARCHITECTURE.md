@@ -10,11 +10,12 @@ Pathfinder is an **AI-accelerated cyber defense system** designed to reduce **Me
 
 It does this by combining:
 
-* **Code-derived architecture graphs**
-* **Deterministic graph algorithms**
-* **LLM semantic enrichment**
+* **CodeGraph-grounded structural extraction**
+* **LLM service-boundary inference**
+* **LLM-generated risk weights**
+* **Deterministic path search over validated weighted graphs**
 
-The system automatically derives a **service-level architecture graph** from a codebase using the CodeGraph knowledge graph, maps vulnerabilities to affected services, then simulates attacker movement across that architecture using a weighted attack graph model.
+The system automatically derives a **service-level architecture graph** from a codebase using the CodeGraph knowledge graph and an LLM service-inference layer, maps vulnerabilities to affected services, then uses an LLM to assign risk weights from service code and vulnerability context before simulating attacker movement across that weighted architecture.
 
 The goal is to answer questions such as:
 
@@ -23,7 +24,7 @@ The goal is to answer questions such as:
 * *Which services represent the highest security risk?*
 * *Which node should we patch, monitor, or segment first?*
 
-The architecture emphasizes **deterministic structural reasoning** with **LLMs used for interpretation and enrichment rather than core graph computation**.
+The architecture emphasizes **CodeGraph-grounded inference**: deterministic extraction provides structural truth, LLMs infer service abstractions and risk weights, and graph traversal remains deterministic once those outputs have been validated.
 
 The key product story is not simply that Pathfinder "uses an LLM." The architecture is designed so that AI **dramatically reduces the time required to understand and respond to threats**.
 
@@ -38,25 +39,29 @@ Codebase                         Vulnerability / CVE Input
 CodeGraph Extraction          LLM Vulnerability Interpretation
    │                                      │
    ▼                                      │
-Service Discovery Engine                  │
+Candidate Cluster Packaging               │
    │                                      │
    ▼                                      │
-Service Graph Construction                │
+LLM Service Boundary Inference            │
    │                                      │
-   └──────────────► Attack Graph Engine ◄─┘
+   ▼                                      │
+Service Graph Validation + Construction   │
+   │                                      │
+   └──────────────► LLM Risk Scoring ◄────┘
                           │
                           ▼
-             LLM Enrichment + Security Copilot
+             Deterministic Attack Path Search
                           │
                           ▼
-  Security Insights / Dashboard / Mitigation Recommendations
+        Security Copilot / Explanations / Mitigations
 ```
 
 Core idea:
 
 * **CodeGraph provides structural truth**
-* **Graph algorithms produce deterministic architecture and attack paths**
-* **LLMs provide semantic understanding, explanations, and mitigation guidance**
+* **LLMs infer service architecture abstractions from graph evidence**
+* **LLMs generate risk weights from service code and threat context**
+* **Graph algorithms deterministically search attack paths once the graph and weights are validated**
 * **The full pipeline is optimized to reduce MTTR from hours to seconds on bounded scenarios**
 
 ---
@@ -69,7 +74,8 @@ Pathfinder is intentionally designed to remove the main human bottlenecks in cyb
 
 Pathfinder reduces discovery time by:
 
-* deriving architecture directly from code
+* deriving candidate architecture directly from code
+* inferring service boundaries automatically from graph evidence
 * surfacing affected services automatically
 * converting natural-language advisories into structured signals
 
@@ -77,7 +83,8 @@ Pathfinder reduces discovery time by:
 
 Pathfinder reduces analysis time by:
 
-* constructing a service graph automatically
+* constructing a validated service graph automatically
+* assigning service risk weights automatically from code and vulnerability context
 * simulating likely attacker movement over an attack graph
 * identifying choke points and crown-jewel exposure immediately
 
@@ -99,19 +106,21 @@ A strong cybersecurity platform is not judged only on accuracy. Pathfinder's arc
 
 ## Cost Efficiency
 
-* deterministic graph computation performs the heavy reasoning work
-* LLM calls are reserved for semantically difficult tasks such as CVE interpretation and explanation
-* architecture extraction and graph artifacts can be cached and reused across many analyses
+* deterministic graph traversal performs repeated search efficiently once weights are assigned
+* LLM cost is concentrated in service-boundary inference and risk scoring, where semantic lift matters most
+* architecture outputs, score outputs, and graph artifacts can be cached and reused across many analyses
 
 ## Scalability
 
 * the system compresses symbol-level complexity into service-level reasoning
 * incremental recomputation can be used when only part of a codebase changes
+* independent services can be re-scored without recomputing the full graph
 * the graph model can start with NetworkX for MVP and evolve to larger backends if needed
 
 ## Security and Robustness
 
 * graph outputs are grounded in code-derived evidence
+* service boundaries and risk scores must be schema-validated before use
 * high-impact actions are recommendation-first rather than automatically enforced in the MVP
 * prompts and outputs can be bounded to avoid leaking unnecessary sensitive context
 
@@ -119,11 +128,11 @@ A strong cybersecurity platform is not judged only on accuracy. Pathfinder's arc
 
 * new attacker goals can be added without redesigning the pipeline
 * new input sources such as CVE feeds and runtime telemetry can be attached incrementally
-* model providers can be swapped without changing the deterministic reasoning core
+* model providers can be swapped without changing CodeGraph extraction or deterministic traversal
 
 ## Novelty
 
-The technical novelty is the combination of **code-derived architecture inference**, **attack graph reasoning**, and **AI explanation** in a single workflow optimized for cyber response time.
+The technical novelty is the combination of **CodeGraph-grounded service inference**, **LLM-generated cyber risk weights**, and **deterministic attack-path search** in a single workflow optimized for cyber response time.
 
 ---
 
@@ -165,9 +174,9 @@ The CodeGraph is the **source of truth** for all architectural inference.
 
 ---
 
-# 2. Service Discovery Engine
+# 2. LLM Service Boundary Inference
 
-The Service Discovery Engine extracts **candidate architectural units** from the CodeGraph.
+Pathfinder first extracts **candidate architectural units** from the CodeGraph, then uses an LLM to infer which candidates should become service nodes.
 
 These are potential **service nodes** such as:
 
@@ -177,7 +186,7 @@ These are potential **service nodes** such as:
 * admin interface
 * agent runtime
 
-Because real architectures are rarely explicit in code, Pathfinder uses **deterministic heuristics** to infer these units.
+Because real architectures are rarely explicit in code, Pathfinder does not rely on directory heuristics alone. Instead, it packages graph-backed candidates and lets the LLM infer service boundaries from structural and semantic evidence.
 
 This is one of the first major MTTR gains: analysts no longer need to manually reverse-engineer architecture before reasoning about security impact.
 
@@ -269,7 +278,7 @@ A shared library often has many inbound dependencies but few outbound ones.
 
 ### Semantic Signals
 
-Simple deterministic keyword signals from:
+Semantic hints from:
 
 * directory names
 * file names
@@ -287,37 +296,38 @@ agent
 worker
 ```
 
-These help identify domain boundaries.
+These help the LLM identify domain boundaries and distinguish true services from shared utilities.
 
 ---
 
-# Candidate Scoring
+# Candidate Packaging for the LLM
 
-Candidates are scored according to **service-likeness**.
+For each candidate, Pathfinder prepares a compact inference bundle containing:
 
-Example conceptual scoring:
+* structural metrics
+* dependency direction
+* representative files and symbols
+* semantic hints
+* neighboring candidate relationships
 
-```
-service_score =
-  cohesion_score
-+ public_surface_score
-+ semantic_score
-+ size_score
-- utility_penalty
-- overfragmentation_penalty
-```
+The LLM uses this bundle to decide whether the candidate is:
 
-Candidates that score above a threshold become **service nodes**.
+* a standalone service
+* a shared library or utility
+* part of a larger service
+* an ambiguous cluster that needs review
 
 ---
 
-# Node Promotion
+# Validation and Node Promotion
 
-Because candidates often overlap, Pathfinder promotes nodes using deterministic rules:
+Because candidates often overlap, Pathfinder validates and promotes nodes using deterministic rules after the LLM proposes service boundaries:
 
-1. Prefer **more specific subtrees** over broad parents.
-2. Avoid promoting both parent and child nodes unless clearly distinct.
-3. Ensure each file belongs to **exactly one promoted node**.
+1. reject any invented files, symbols, or directories
+2. prefer **more specific subtrees** over broad parents when both are proposed
+3. avoid promoting both parent and child nodes unless clearly distinct
+4. ensure each file belongs to **exactly one promoted service** or a shared utility bucket
+5. flag unresolved ambiguity for analyst review
 
 Example:
 
@@ -333,7 +343,7 @@ Promoted node:
 services/auth
 ```
 
-All descendant files and symbols become members of that service node.
+All descendant files and symbols become members of that service node once validation succeeds.
 
 ---
 
@@ -428,11 +438,19 @@ NetworkX provides algorithms for:
 
 ---
 
-## Risk Scoring
+## LLM Risk Scoring
 
-Edges are weighted using a deterministic risk model.
+Services or attack steps are weighted using an LLM-generated risk model.
 
-Example factors:
+Inputs to the scoring prompt include:
+
+* service metadata and capability labels
+* representative code files
+* dependency neighborhood
+* vulnerability or CVE context
+* attacker goal
+
+Typical numeric outputs include:
 
 ```
 exploitability
@@ -444,9 +462,15 @@ exploitability
 - segmentation_penalty
 ```
 
-This produces a **cost score** for attacker movement.
+The LLM can also return:
 
-Graph traversal then identifies:
+* confidence
+* brief rationale
+* evidence references to files, symbols, or edges
+
+These outputs are normalized, bounded, and validated before they become **cost scores** for attacker movement.
+
+Deterministic graph traversal then identifies:
 
 * most probable attack paths
 * alternative paths
@@ -468,7 +492,7 @@ persistence
 system_sabotage
 ```
 
-Each goal modifies risk weights.
+Each goal changes the context the LLM uses when generating risk weights.
 
 Example:
 
@@ -493,19 +517,21 @@ This produces **goal-specific attack paths**.
 
 ---
 
-# 6. LLM Enrichment Layer
+# 6. LLM Architecture, Risk, and Enrichment Layer
 
-LLMs are used for **semantic understanding**, not structural reasoning.
+LLMs are used for three core responsibilities:
 
-The deterministic graph engine produces architecture and attack paths.
+* inferring service boundaries from CodeGraph-backed candidates
+* generating numeric risk weights from service code and threat context
+* producing analyst-facing explanations and mitigation guidance
 
-The LLM layer enriches this with interpretation.
+Deterministic components still handle CodeGraph extraction, validation, and final path traversal.
 
 ---
 
-## Service Labeling
+## Service Boundary Inference
 
-The LLM analyzes service clusters and generates human-readable labels.
+The LLM analyzes candidate clusters and proposes service boundaries, labels, and capabilities.
 
 Example input:
 
@@ -520,8 +546,10 @@ refresh_session
 Output:
 
 ```
-Authentication Service
-Responsibilities:
+service_name: Authentication Service
+classification: standalone_service
+confidence: 0.92
+responsibilities:
 - login
 - token validation
 - session management
@@ -543,7 +571,27 @@ file system access
 agent orchestration
 ```
 
-This provides **security context**.
+This provides **security context** for downstream risk scoring.
+
+---
+
+## Risk Weight Generation
+
+The LLM evaluates service context and emits structured scores that influence traversal.
+
+Example output:
+
+```json
+{
+  "exploitability": 0.86,
+  "privilege_gain": 0.78,
+  "goal_alignment": 0.81,
+  "detection_risk": 0.32,
+  "confidence": 0.74
+}
+```
+
+These values are validated and normalized before path search runs.
 
 ---
 
@@ -560,7 +608,7 @@ CVE description
 → affected components
 ```
 
-These signals adjust graph weights.
+These signals inform the LLM risk-scoring step and help map advisories to the right services.
 
 This is where AI directly removes a major human bottleneck: natural-language vulnerability reports become machine-usable security signals in seconds.
 
@@ -601,13 +649,15 @@ What is the most likely ransomware path?
 Which node should we patch first?
 ```
 
-The copilot does not invent topology. It answers by retrieving evidence from the CodeGraph, Service Graph, and Attack Graph, then uses the LLM to produce concise analyst-facing responses.
+The copilot does not invent topology. It answers by retrieving evidence from the CodeGraph, validated Service Graph, and Attack Graph, then uses the LLM to produce concise analyst-facing responses.
 
 ## Responsible AI Guardrails
 
 To ensure responsible use of AI, Pathfinder follows these constraints:
 
-* the LLM does not invent graph structure or replace deterministic attack-path computation
+* the LLM may propose service boundaries only from CodeGraph-backed candidates; it cannot invent files or symbols
+* the LLM emits structured scores and rationales, but does not directly act as the final attack-path engine
+* service boundaries and risk weights must be schema-validated and bounded before use
 * every explanation should be traceable to known nodes, edges, and vulnerability signals
 * autonomous mitigation is out of scope for the MVP unless explicitly reviewed by a human
 * prompts should minimize unnecessary sensitive source-code exposure when summaries are sufficient
@@ -722,9 +772,9 @@ Every layer in Pathfinder should shorten one of three delays:
 
 ---
 
-## Deterministic Structure
+## Grounded Structure
 
-Architecture discovery is based on graph analysis and heuristics rather than LLM inference.
+Architecture abstraction is inferred by the LLM, but only over a deterministic CodeGraph and validated candidate set.
 
 ---
 
@@ -734,7 +784,8 @@ Every node and edge can be traced back to:
 
 * source files
 * symbol dependencies
-* deterministic scoring rules
+* validated service-boundary assignments
+* validated risk-score outputs and rationales
 
 ---
 
@@ -750,7 +801,7 @@ CodeGraph → Service Graph → Attack Graph
 
 ## Hybrid AI + Deterministic Reasoning
 
-LLMs enhance interpretation but never replace deterministic reasoning.
+LLMs infer service boundaries and generate risk weights, while deterministic components validate those outputs and search paths over the resulting graph.
 
 This hybrid model is what gives Pathfinder:
 
@@ -765,9 +816,10 @@ This hybrid model is what gives Pathfinder:
 The MVP uses a conservative implementation path:
 
 * bounded codebase ingestion
-* deterministic heuristics for service discovery
+* CodeGraph-backed candidate generation for service inference
+* schema-constrained LLM outputs for service boundaries and risk scores
 * NetworkX for graph traversal
-* LLM calls only for interpretation and explanation
+* caching for architecture and scoring outputs
 
 This keeps the first version feasible while leaving clear room for enterprise hardening, larger graph stores, and more autonomous workflows.
 
@@ -783,9 +835,9 @@ Expanding service nodes into symbol-level attack chains.
 
 ---
 
-### Automatic Architecture Discovery
+### Better Architecture Inference
 
-Using dependency community detection to identify architectural clusters in messy monoliths.
+Using better candidate generation, community detection, and reviewer feedback to improve LLM service-boundary inference in messy monoliths.
 
 ---
 
@@ -813,10 +865,12 @@ Pathfinder transforms raw code into a **security-aware architecture model**.
 
 By combining:
 
-* deterministic graph analysis
+* CodeGraph extraction
 * knowledge graphs
 * attacker intent modeling
-* LLM semantic enrichment
+* LLM-derived service architecture
+* LLM-generated risk weights
+* deterministic path search
 
 the system predicts **how attackers are most likely to move through a system**, explains the result, and recommends mitigations.
 
