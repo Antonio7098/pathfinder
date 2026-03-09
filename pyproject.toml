@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pathfinder"
+version = "0.1.0"
+description = "Pathfinder structural graph extraction MVP"
+requires-python = ">=3.12"
+dependencies = [
+  "pydantic>=2,<3",
+  "ucp-content>=0.1.14,<0.2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7,<9"]
+
+[project.scripts]
+pathfinder = "pathfinder.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
