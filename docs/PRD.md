@@ -12,7 +12,7 @@
 
 **Primary Goal:** Reduce **Mean Time To Respond (MTTR)** by helping analysts answer one urgent question quickly:
 
-> If an attacker starts here, what is the most likely path through this codebase?
+> Given a codebase, what is the most likely path an attacker would take through the code?
 
 Pathfinder's MVP deliberately reduces scope.
 
@@ -62,7 +62,7 @@ Pathfinder is an AI-assisted code risk engine that combines:
 High-level workflow:
 
 ```text
-Vulnerability or attack goal appears
+Codebase is ingested
         ↓
 Pathfinder builds a structural file graph
         ↓
@@ -149,14 +149,7 @@ This makes the graph cyber-specific rather than just dependency-aware.
 
 ### LLM File Risk Scoring
 
-For each file, the LLM assigns structured scores related to one or more attack goals.
-
-Example attack goals:
-
-* data exfiltration
-* privilege escalation
-* ransomware
-* persistence
+For each file, the LLM assigns structured scores related to general attacker relevance.
 
 Example scoring factors:
 
@@ -200,7 +193,7 @@ Using the weighted attack graph, Pathfinder computes:
 For the top predicted path, Pathfinder explains:
 
 * why each file matters
-* what attack goal the path supports
+* why the path is security-significant
 * which files should be patched, reviewed, or monitored first
 
 ---
@@ -229,7 +222,7 @@ Examples include:
 
 ## File Risk Weight
 
-A numeric score assigned by the LLM indicating how valuable or useful a file is to an attacker for a specific attack goal.
+A numeric score assigned by the LLM indicating how valuable or useful a file is to an attacker in general.
 
 ## Attack Edge Weight
 
@@ -270,8 +263,6 @@ Structural relation types still matter, but mainly as evidence or priors for whe
 ### Inputs
 
 * source code repository
-* optional vulnerability or entry-file input
-* selected attack goal
 
 ### Outputs
 
@@ -304,7 +295,7 @@ detection_risk
 confidence
 ```
 
-These are combined into a file-level risk score for a chosen attack goal.
+These are combined into a file-level risk score for general attacker relevance.
 
 For each candidate attack edge, Pathfinder also produces structured outputs such as:
 
@@ -337,23 +328,19 @@ Lower-cost paths are treated as more likely attacker paths.
 
 Build a structural file graph from the repository.
 
-### Step 2: Select Scenario
+### Step 2: Derive Attack Transitions
 
-Choose an attack goal and, if known, an entry file or vulnerable file.
+Use structural relationships plus security-relevant code patterns to derive plausible attack edges.
 
-### Step 3: Derive Attack Transitions
-
-Use structural relationships plus vulnerability patterns to derive plausible attack edges.
-
-### Step 4: Score Files and Attack Edges
+### Step 3: Score Files and Attack Edges
 
 Use the LLM to assign attack-relevant risk weights to files and attack transitions.
 
-### Step 5: Run Path Search
+### Step 4: Run Path Search
 
 Use a graph algorithm to compute the most likely attack path and top alternatives.
 
-### Step 6: Explain Results
+### Step 5: Explain Results
 
 Generate a human-readable explanation and mitigation priorities.
 
@@ -373,7 +360,7 @@ Derive plausible attack transitions from structurally connected files.
 
 ### LLM File Scoring
 
-Score each file for at least 3 attack goals.
+Score each file for general attacker relevance and payoff.
 
 ### LLM Attack Edge Scoring
 
@@ -381,7 +368,7 @@ Score candidate attack transitions with attack-type labels and likelihood values
 
 ### Path Search
 
-Compute the top 3 likely attack paths from a chosen starting point.
+Compute the top 3 likely attack paths using inferred entry-like files and high-value targets.
 
 ### Explanation Layer
 
@@ -397,7 +384,7 @@ Show a graph or path output that is understandable in a short demo.
 
 ### MTTR Reduction
 
-Measure time required to move from “vulnerability or attack goal identified” to “top likely path and first mitigation suggestion shown.”
+Measure time required to move from “repository ingested” to “top likely path and first mitigation suggestion shown.”
 
 ### Path Quality
 
@@ -413,16 +400,9 @@ The system should work on a bounded demo repository without requiring runtime te
 
 ---
 
-# 13. Example Scenario
+# 13. Example Path
 
-Input:
-
-```text
-Attack goal: privilege escalation
-Entry file: auth_handler.py
-```
-
-Predicted path:
+One plausible output for a repository:
 
 ```text
 auth_handler.py
@@ -451,6 +431,8 @@ Suggested mitigation:
 
 Potential future extensions after the file-level MVP:
 
+* attack-goal conditioning
+* explicit entry-file or vulnerability input
 * service-level graph abstraction
 * runtime telemetry enrichment
 * richer edge weighting
