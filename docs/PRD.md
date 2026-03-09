@@ -21,7 +21,8 @@ Instead of inferring services, environments, and runtime topology, Pathfinder st
 * each **file** is a graph node
 * file dependencies create the **structural graph**
 * plausible attacker moves become **attack-transition edges**
-* an LLM assigns attack-relevant **risk weights** to files and transitions
+* one LLM pass per file assigns **target_flag** and node risk
+* one LLM pass per structural edge assigns attack edges and traversal cost
 * a graph algorithm calculates the most likely attack path
 
 This keeps the system grounded, demoable, and technically credible for an MVP.
@@ -56,7 +57,8 @@ Pathfinder addresses this by turning the codebase into a structural file graph, 
 Pathfinder is an AI-assisted code risk engine that combines:
 
 * **file-level graph extraction from code**
-* **LLM-based file and attack-transition scoring**
+* **LLM-based per-file target/risk analysis**
+* **LLM-based per-structural-edge attack-transition generation**
 * **deterministic graph search**
 
 High-level workflow:
@@ -134,6 +136,7 @@ Pathfinder derives an attack graph from the structural file graph.
 In the attack graph:
 
 * **nodes** remain files
+* files can act as **entry**, **transition**, or **target** nodes by role
 * **edges** represent plausible attacker moves between files
 * edges are labeled with attack mechanisms where possible
 
@@ -149,31 +152,31 @@ This makes the graph cyber-specific rather than just dependency-aware.
 
 ### LLM File Risk Scoring
 
-For each file, the LLM assigns structured scores related to general attacker relevance.
+For each file, Pathfinder performs one LLM call that assigns structured target metadata and general attacker payoff.
 
-Example scoring factors:
+Minimum outputs:
 
-* exploitability
-* privilege gain potential
-* sensitivity of accessed data
-* lateral movement value
-* detectability
+* `target_flag`
+* `normalized_risk_score`
+* `confidence`
+* `rationale`
 
-Files represent the **value** or **usefulness** of compromise.
+Optional supporting sub-scores can still be retained, but the canonical node-level outputs are target classification and risk. Files represent the **value** or **usefulness** of compromise at the destination of a path.
 
 ---
 
 ### Attack Edge Scoring
 
-For each plausible attack transition, Pathfinder assigns structured scores such as:
+For each structural edge, Pathfinder performs one LLM call to decide whether a plausible attack transition exists and, if so, assign structured outputs such as:
 
 * attack type
+* `edge_attack_cost`
 * transition likelihood
 * required attacker capability
 * confidence
 * detection risk
 
-Attack edges represent the **feasibility of movement** between files.
+Attack edges represent the **feasibility and cost of movement** between files. If no plausible movement exists, no attack edge is emitted for that structural relationship.
 
 ---
 
@@ -183,6 +186,7 @@ Using the weighted attack graph, Pathfinder computes:
 
 * most likely attack path
 * top-k likely attack paths
+* highest-value target files reachable from entry-like files
 * highest-risk intermediate files
 * likely choke points for mitigation
 
@@ -204,6 +208,8 @@ For the top predicted path, Pathfinder explains:
 
 A file in the codebase represented as a graph node.
 
+Files can act as **entry**, **transition**, or **target** nodes by role. `target_flag` marks files that are plausible attacker destinations.
+
 ## Dependency Edge
 
 A directed structural relationship showing one file depends on, imports, references, or calls into another.
@@ -222,11 +228,11 @@ Examples include:
 
 ## File Risk Weight
 
-A numeric score assigned by the LLM indicating how valuable or useful a file is to an attacker in general.
+A numeric score assigned by the LLM indicating how valuable or useful a target file is to an attacker.
 
 ## Attack Edge Weight
 
-A numeric score assigned to an attack transition indicating how plausible, easy, or effective that movement is for an attacker.
+A numeric score assigned to an attack transition indicating how plausible, easy, or effective that movement is for an attacker. This is the traversal cost used during path search.
 
 ## Attack Path
 
@@ -240,7 +246,7 @@ A sequence of connected files that represents likely attacker progression.
 
 Node weights are core to the MVP.
 
-Each file should receive LLM-generated risk values.
+Each file should receive one LLM analysis that produces `target_flag` and node risk.
 
 ## Edge Weights: Yes, In The Attack Graph
 
@@ -249,12 +255,14 @@ Edges in the **attack graph** should represent attack risk, not just generic dep
 Recommended MVP approach:
 
 * use structural dependencies to generate candidate transitions
-* score **files** for attacker value
-* score **attack edges** for movement feasibility
+* score **files** for target value
+* score **attack edges** for movement feasibility and traversal cost
 
 This keeps the system grounded while making the graph meaningfully security-specific.
 
 Structural relation types still matter, but mainly as evidence or priors for whether an attack edge is possible.
+
+For traversal semantics, node risk belongs on target nodes, while traversal cost belongs on attack edges.
 
 ---
 
@@ -287,38 +295,38 @@ Structural relation types still matter, but mainly as evidence or priors for whe
 For each file, Pathfinder asks the LLM to produce structured numeric outputs such as:
 
 ```text
-exploitability
-privilege_gain
-data_access_value
-lateral_movement_value
-detection_risk
+target_flag
+normalized_risk_score
 confidence
 ```
 
-These are combined into a file-level risk score for general attacker relevance.
+These define whether the file is a likely attacker destination and how valuable it is if reached.
 
-For each candidate attack edge, Pathfinder also produces structured outputs such as:
+For each structural edge, Pathfinder also produces structured outputs such as:
 
 ```text
+creates_attack_transition
 attack_type
+edge_attack_cost
 transition_likelihood
 required_capability
 detection_risk
 confidence
 ```
 
-For MVP, node scores represent **attacker payoff**, while edge scores represent **attacker movement feasibility**.
+For MVP, node scores represent **attacker payoff at the target**, while edge scores represent **attacker movement feasibility during traversal**.
 
-Suggested path-cost idea:
+Suggested path-search decomposition:
 
 ```text
-transition_cost(u → v)
-= edge_attack_cost(u, v)
-+ hop_penalty
-+ (1 - normalized_risk_score(v))
+path_traversal_cost(P)
+= Σ(edge_attack_cost(e) + hop_penalty)
+
+path_target_value(P)
+= normalized_risk_score(last_node(P))
 ```
 
-Lower-cost paths are treated as more likely attacker paths.
+Pathfinder should search from entry-like files to `target_flag = true` files. Lower traversal cost means easier attacker movement; higher target value means a more attractive destination.
 
 ---
 
@@ -328,17 +336,17 @@ Lower-cost paths are treated as more likely attacker paths.
 
 Build a structural file graph from the repository.
 
-### Step 2: Derive Attack Transitions
+### Step 2: Score Files
 
-Use structural relationships plus security-relevant code patterns to derive plausible attack edges.
+Run one LLM call per file to assign `target_flag`, node risk, and rationale.
 
-### Step 3: Score Files and Attack Edges
+### Step 3: Derive and Score Attack Transitions
 
-Use the LLM to assign attack-relevant risk weights to files and attack transitions.
+Run one LLM call per structural edge to decide whether an attack edge exists and what traversal cost it should carry.
 
 ### Step 4: Run Path Search
 
-Use a graph algorithm to compute the most likely attack path and top alternatives.
+Use a graph algorithm to compute the most likely attack path and top alternatives from entry-like files to target-flagged files.
 
 ### Step 5: Explain Results
 
@@ -360,15 +368,15 @@ Derive plausible attack transitions from structurally connected files.
 
 ### LLM File Scoring
 
-Score each file for general attacker relevance and payoff.
+Run one LLM pass per file to assign `target_flag` and attacker payoff.
 
 ### LLM Attack Edge Scoring
 
-Score candidate attack transitions with attack-type labels and likelihood values.
+Run one LLM pass per structural edge to emit attack-type labels and traversal cost where a plausible move exists.
 
 ### Path Search
 
-Compute the top 3 likely attack paths using inferred entry-like files and high-value targets.
+Compute the top 3 likely attack paths using inferred entry-like files, target-flagged files, edge traversal cost, and target-node risk.
 
 ### Explanation Layer
 
@@ -450,6 +458,6 @@ Pathfinder's reduced-scope MVP focuses on one strong and buildable capability:
 
 More precisely, Pathfinder:
 
-> builds a structural file graph, derives attack-transition edges between files, scores nodes and edges for attacker utility, and ranks the most likely attack path through the application.
+> builds a structural file graph, runs one LLM call per file to assign target flags and node risk, runs one LLM call per structural edge to derive attack edges and traversal cost, and ranks the most likely attack path through the application.
 
 This is a much tighter and more achievable first version than full service inference, while still clearly demonstrating how AI can accelerate cyber threat analysis.

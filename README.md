@@ -18,9 +18,9 @@ Security teams often spend too long on three things:
 
 Pathfinder is built to shrink those delays by combining:
 
-* **code-derived architecture discovery**
+* **code-derived structural file-graph extraction**
 * **deterministic graph reasoning**
-* **LLM-based interpretation and explanation**
+* **LLM-based file and edge analysis**
 
 ## Core value proposition
 
@@ -28,11 +28,11 @@ Pathfinder is not just an "LLM for security."
 
 It is a hybrid system that:
 
-1. derives architecture from code
-2. maps vulnerabilities to services
-3. simulates likely attacker movement
-4. identifies choke points
-5. recommends mitigations
+1. builds a structural graph of source files and their relationships
+2. runs one LLM analysis per file to identify likely target files and assign node risk
+3. runs one LLM analysis per structural edge to derive attack edges and traversal cost
+4. ranks likely attacker paths from entry-like files to target files
+5. identifies choke points and recommends mitigations
 
 This reframes the product from:
 
@@ -44,18 +44,17 @@ to:
 
 ## How it works
 
-Pathfinder uses a layered graph model:
+Pathfinder uses a layered file-level graph model:
 
-`CodeGraph → Service Graph → Attack Graph`
+`Repository → Structural File Graph → Attack Graph`
 
 High-level flow:
 
-1. **CodeGraph extraction** captures the codebase structure and symbol dependencies.
-2. **Service discovery** infers service boundaries from the code.
-3. **Service graph construction** builds service-to-service dependency relationships.
-4. **Attack graph reasoning** simulates attacker movement using deterministic scoring.
-5. **LLM enrichment** interprets CVEs, explains risk, and proposes mitigations.
-6. **Security copilot** lets analysts ask natural-language questions grounded in the graph.
+1. **Structural extraction** captures source files and file-to-file relationships.
+2. **Per-file LLM analysis** assigns `target_flag` and node risk for each file.
+3. **Per-structural-edge LLM analysis** derives attack edges and traversal cost.
+4. **Attack path search** ranks likely attacker paths deterministically once scores are assigned.
+5. **Explanation** highlights why the destination matters and where to mitigate first.
 
 ## MTTR-first design
 
@@ -67,30 +66,30 @@ Pathfinder is designed to reduce:
 
 Example workflow:
 
-`Vulnerability appears → AI derives architecture → AI predicts attacker path → AI identifies choke points → AI recommends mitigations`
+`Repository ingested → Structural graph built → File/edge LLM analysis runs → Attack path ranked → Choke points explained`
 
 ## Example outcome
 
 Input:
 
-`CVE-XXXX affects Auth Service`
+`Repository contains exposed auth logic, admin routes, and permissions storage`
 
 Output:
 
-`Internet → Web Service → Auth Service → Billing Service → Payment DB`
+`auth_handler.py → session_manager.py → admin_access.py → permissions_store.py`
 
 Recommended action:
 
-`Patch Auth Service first; add monitoring on Billing API`
+`Harden auth_handler.py first; inspect authorization in admin_access.py`
 
 ## Key capabilities
 
-* code-derived architecture discovery
-* instant vulnerability impact analysis
-* goal-conditioned attack path prediction
+* code-derived structural file-graph extraction
+* file-level attack path prediction
+* target-file risk ranking
 * defensive choke-point identification
 * explainable mitigation recommendations
-* security copilot queries over the graph
+* attack-edge reasoning grounded in structural evidence
 
 ## Repository contents
 
@@ -111,14 +110,14 @@ The implementation goal is to demonstrate that AI can compress a workflow that n
 
 Pathfinder can be described in one sentence as:
 
-> Pathfinder uses AI to automatically derive system architecture from code, simulate attacker behavior, and generate mitigation strategies, reducing cyber threat analysis time from hours to seconds.
+> Pathfinder builds a structural file graph, uses one LLM pass per file to assign `target_flag` and target risk, uses one LLM pass per structural edge to derive attack edges and traversal cost, and then ranks likely attacker paths deterministically.
 
 ## Next steps
 
 Likely next implementation milestones:
 
-* build CodeGraph ingestion
-* implement service discovery heuristics
-* construct the service and attack graphs
-* add risk scoring and attacker intent modeling
+* build repository and structural-edge ingestion
+* implement per-file target/risk analysis
+* implement per-structural-edge attack-edge generation
+* add deterministic path search over attack edges
 * add a simple dashboard / copilot demo

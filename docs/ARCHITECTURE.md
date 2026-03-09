@@ -14,7 +14,8 @@ The architecture combines:
 
 * **file graph extraction from source code**
 * **attack-transition derivation from structural relationships**
-* **LLM-based file and attack-edge scoring**
+* **LLM-based per-file target/risk analysis**
+* **LLM-based per-structural-edge attack-edge derivation and cost assignment**
 * **deterministic path search**
 
 This is the right MVP shape because it is:
@@ -56,9 +57,12 @@ Codebase
 Core idea:
 
 * files are the unit of reasoning
+* files can act as entry, transition, or target nodes by role rather than by node type
 * structural dependencies define what is possible
 * attack-transition edges define how attackers plausibly move
-* the LLM scores file value and transition feasibility
+* one LLM call per file assigns target-ness and node risk
+* one LLM call per structural edge assigns attack-transition semantics and traversal cost
+* target risk belongs on end nodes, while traversal cost belongs on edges
 * graph search computes likely paths once weights are assigned
 * explanations are grounded in real files and real dependencies
 
@@ -127,6 +131,7 @@ The system derives an **attack graph** from the structural file graph.
 In this graph:
 
 * nodes are still files
+* files may serve as entry files, intermediate transition files, or target files
 * edges represent plausible attacker transitions
 * edges are labeled with attack mechanisms where possible
 
@@ -140,6 +145,8 @@ api/user.js --(IDOR)--> api/profile.js
 
 This is a key design improvement: attack paths should run over **attack transitions**, not over generic imports alone.
 
+`target` is a file role, not a separate node type. A file can be a transition node in one path and a target node in another.
+
 ---
 
 ## 3. MVP Input Surface
@@ -151,6 +158,7 @@ Pathfinder should infer likely attacker movement from:
 * file structure
 * dependency relationships
 * entrypoint-like exposure signals
+* target-like payoff signals
 * security-relevant code semantics
 
 This keeps the MVP focused on one core capability:
@@ -161,9 +169,14 @@ Attack goals, explicit starting files, vulnerability inputs, and analyst hints c
 
 ---
 
-## 4. LLM File and Attack Scoring Engine
+## 4. LLM File and Edge Analysis Engine
 
-This component assigns structured risk scores to files and attack transitions.
+This component assigns structured node-level value to files and structured traversal cost to attack transitions.
+
+### Bounded call pattern
+
+* **one LLM call per file**
+* **one LLM call per structural edge**
 
 ### Inputs per file
 
@@ -174,26 +187,26 @@ This component assigns structured risk scores to files and attack transitions.
 
 ### Outputs per file
 
-* exploitability
-* privilege gain potential
-* sensitive data access value
-* lateral movement value
-* detection risk
+* `target_flag`
+* `normalized_risk_score`
 * confidence
 * short rationale
+* optional supporting sub-scores
 
-These outputs are normalized into a file-level risk score.
+These outputs define whether the file is a likely attacker destination and how valuable it is if reached.
 
-### Outputs per attack edge
+### Outputs per structural edge
 
+* whether a plausible `attack_transition` exists
 * attack type
+* `edge_attack_cost`
 * transition likelihood
 * required capability
 * detection risk
 * confidence
 * short rationale
 
-These outputs are normalized into attack-transition costs or likelihoods.
+If the structural edge does not support a plausible attacker move, Pathfinder should emit no attack edge for that relationship. If it does, the emitted `attack_transition` carries the traversal cost used by search.
 
 For the MVP, this scoring is **goal-agnostic**.
 
@@ -232,7 +245,7 @@ Structural edges are evidence. Attack edges are the edges used for attack-path s
 
 ### Recommended MVP approach
 
-Use structural relationships to generate candidate transitions, then score those transitions as attack edges.
+Use structural relationships to generate candidate transitions, then run one bounded LLM analysis per structural edge to decide whether to materialize an attack edge and what traversal cost it should carry.
 
 Example:
 
@@ -240,7 +253,7 @@ Example:
 * `api/auth.js --(Broken Authentication)--> api/admin.js`
 * `api/user.js --(IDOR)--> api/profile.js`
 
-Node weights represent **attacker payoff**. Edge weights represent **attacker movement feasibility**.
+Node risk represents **attacker payoff at the destination**. Edge weights represent **attacker movement feasibility during traversal**.
 
 ### Why derive attack edges from structure first?
 
@@ -261,27 +274,30 @@ So the recommended design is:
 
 The weighted attack graph is built from:
 
-* file nodes
+* file nodes with role flags
 * attack-transition edges
-* node value scores
-* edge movement scores
+* node target-value scores
+* edge movement costs
 
-One practical formulation is to treat the cost of moving into a file as:
+Traversal should be computed on edges, while node risk remains attached to the destination file.
+
+One practical decomposition is:
 
 ```text
-transition_cost(u → v)
-= edge_attack_cost(u, v)
-+ hop_penalty
-+ (1 - normalized_risk_score(v))
+path_traversal_cost(P)
+= Σ(edge_attack_cost(e) + hop_penalty)
+
+path_target_value(P)
+= normalized_risk_score(last_node(P))
 ```
 
 Interpretation:
 
-* higher-value files are cheaper for the attacker to reach
-* harder attack transitions are more expensive
+* higher-value target files are more attractive attacker destinations
+* harder attack transitions are more expensive to traverse
 * long paths still incur cost via hop penalties
 
-This makes standard shortest-path methods useful.
+Search should begin from entry-like files and terminate at `target_flag` files. Ranking can combine low traversal cost with high target value, but node risk should not be folded into per-edge traversal cost.
 
 ---
 
@@ -297,7 +313,7 @@ Useful algorithms for MVP:
 
 ### Outputs
 
-* best inferred path from an entry-like file to a high-value target region
+* best inferred path from an entry-like file to a target-flagged file
 * top-k alternative paths
 * highest-risk intermediate files
 * files that frequently appear across strong paths
@@ -334,6 +350,7 @@ Example fields:
 file_path
 language
 entrypoint_flag
+target_flag
 import_count
 out_degree
 in_degree
@@ -370,21 +387,21 @@ Extract files and their dependency relationships.
 
 Construct a structural graph where files are nodes.
 
-## Step 3: Derive Attack Transitions
+## Step 3: Run Per-File LLM Analysis
 
-Use structural relationships and security-relevant code patterns to derive plausible attack edges.
+For each file, assign `target_flag`, `normalized_risk_score`, confidence, and rationale.
 
-## Step 4: Score Files and Attack Edges
+## Step 4: Run Per-Structural-Edge LLM Analysis
 
-Run LLM-based scoring over files and derived attack transitions using local context and inferred attacker relevance.
+For each structural edge, decide whether it supports a plausible attacker move and, if so, emit an attack edge with `edge_attack_cost`.
 
 ## Step 5: Build Weighted Graph
 
-Assign node value scores and edge attack costs.
+Assemble file roles and target scores on nodes, and traversal cost on attack edges.
 
 ## Step 6: Run Path Search
 
-Compute most likely attack path and alternatives.
+Compute most likely attack paths from entry-like files to target-flagged files.
 
 ## Step 7: Explain and Prioritize
 
@@ -404,11 +421,11 @@ Every predicted path must be traceable to real files, real structural dependenci
 
 ## Cost Efficiency
 
-LLM usage should be concentrated in file scoring, not in every graph operation.
+LLM usage should be bounded to one pass per file and one pass per structural edge, not used during path search itself.
 
 ## Determinism After Scoring
 
-Once file weights are assigned, path computation should be deterministic and repeatable.
+Once file target flags, node risk, and edge traversal costs are assigned, path computation should be deterministic and repeatable.
 
 ## Extensibility
 
@@ -430,6 +447,7 @@ Guardrails:
 * the LLM scores files, but does not invent files or dependencies
 * graph structure must come from extracted code relationships
 * attack edges must be justified by structural evidence and attack rationale
+* the LLM may only materialize attack edges for existing structural edges
 * outputs should be schema-constrained and numeric where possible
 * explanations must refer to real files and path evidence
 * high-impact mitigation decisions remain reviewable by humans
@@ -488,7 +506,7 @@ The MVP should answer:
 
 Pathfinder's MVP architecture should be:
 
-> **structural file graph extraction + attack-transition derivation + LLM node and edge scoring + deterministic path search**
+> **structural file graph extraction + one LLM pass per file for target/risk + one LLM pass per structural edge for attack edges/cost + deterministic path search**
 
 That is a strong, realistic, and defensible first version.
 
@@ -496,4 +514,4 @@ On the edge-weight question specifically:
 
 > **Yes — attack edges should carry security meaning and weights.**
 
-The important distinction is that these are not generic dependency edges. They are derived **attack-transition edges** such as SQL injection, broken authentication, or IDOR, grounded in structural file relationships.
+The important distinction is that these are not generic dependency edges. They are derived **attack-transition edges** such as SQL injection, broken authentication, or IDOR, grounded in structural file relationships, and they carry traversal cost while target-node risk stays on the destination file.
