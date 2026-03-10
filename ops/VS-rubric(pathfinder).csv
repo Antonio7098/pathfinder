@@ -1,0 +1,127 @@
+﻿,,,,,How are we hitting the top mark
+Solution - Creation,ONLY used no-code solutions/prototype level code.,"Used programmatic approaches, but code was predominantly boilerplate","Programmatic level was in-line with V1 expectations, with a few qualitative additions (eg: error handling, logging)","Code writing was very advanced, using enterprise or ""beyond V1"" methods like OOP, agentic AI or deep futureproofing","Use modular Python (separate files for middleware, classifier, graph engine, dashboard)
+
+Add logging + error handling
+
+Use NetworkX for graph modelling (enterprise‑grade)
+
+Use LLM reasoning (agentic‑style behaviour)
+
+Add one automated response (block request)
+
+This is enough to be considered “beyond V1”"
+Solution - Implementation,"Solution was only implemented locally, or otherwise worked under special PoC circumstances.","Solution was live deployed, but little consideration given to the architecture design of services & resources used","Solution was demonstrably robust, using a conservative but sensible design.","Solution design clearly shows advanced considerations for at least some of the following: Flexibility, Cost, Security, Scalability, Agility, Novelty.","Use Streamlit (low cost, scalable)
+
+Use lightweight Python services (flexible)
+
+Use middleware isolation (security)
+
+Use modular architecture (agility)
+
+Use LLM explainability (novelty)
+
+You don’t need cloud deployment — a clean architecture diagram + modular code is enough"
+Solution - Effectiveness,"Solution is perhaps interesting, but unlikely to provide value.","Solution provides some provable value, but parts of design are accidentally useful as opposed to purposefully so.","Solution sees some clear benefits, with emphasis placed from the start on its potential.","Solution provides immediate value as-is, with clear room for further iterations.","Show real‑time threat detection
+
+Show instant reasoning
+
+Show MTTR reduction
+
+Show attack graph visualisation
+
+Show clear next steps (e.g., multi‑agent defence, auto‑patching, attack path prediction)"
+Is it cost efficient?,Not at all,Somewhat - Tangential effect,Yes - Intentional design,,"Everything runs locally
+
+No paid APIs
+
+No cloud infrastructure
+
+Lightweight Python stack"
+Is it techstack advanced?,Not at all,Somewhat - Tangential effect,Yes - Intentional design,,"NetworkX
+
+PyVis
+
+Streamlit
+
+LLM reasoning
+
+Middleware interception
+
+Automated response engine
+
+This is a modern, advanced stack"
+Is it scalable?,Not at all,Somewhat - Tangential effect,Yes - Intentional design,,"Show that the graph engine can scale to more nodes
+
+Show that the middleware can be containerised
+
+Show that the dashboard can be deployed
+
+You don’t need to implement scaling — just show the design."
+Is there a clear next iteration?,Not at all,Somewhat - Tangential effect,Yes - Intentional design,,"Your next steps are obvious:
+
+Add attack path prediction
+
+Add attacker profiles
+
+Add autonomous defence
+
+Add cloud ingestion
+
+Add multi‑agent workflows
+
+Mention these in your report."
+Does it practice responsible use of AI?,Not at all,Somewhat - Tangential effect,Yes - Intentional design,,"LLM only used for explainability, not decision‑making
+
+No hallucination risk in core logic
+
+Transparent reasoning panel
+
+Human‑in‑the‑loop for high‑severity actions
+
+This is a strong responsible‑AI story."
+Supporting files,"Are either very unclear in intended use, or aren't transparent with respect to the overall product.","Shed light on the overarching implementation, but some choices",Explain the overall process well.,,"BPMN diagram
+
+Architecture diagram
+
+Data flow diagram
+
+Dashboard screenshots
+
+Code structure overview
+"
+Report - Concise,Way too long/verbose OR missing a lot of important depth/detail,Well designed in terms of size and use of time,,,"Clear, branded, professional, with diagrams and explanations.
+
+Use a clean template
+
+Include diagrams
+
+Include reasoning examples
+
+Include MTTR metrics
+
+Include next steps
+
+Keep it 3–5 pages"
+Report - Technical depth,Report doesn't touch on any of the technical elements.,The implementation logic is explained roughly (eg: using bullet points).,"The implementation logic is really well explained, eg: using diagrams/examples - AND architectural choices mentioned/motivated",,
+Report - Nontechnical explanations,Report doesn't touch on any of the non- technical elements.,Explained the process logic and what you chose to do.,"Explained the process logic, what you did and WHY you did it; including key indicators for further research & value-add.",,
+Report - Format & style,"The report format is either inappropriate, too simple or rough.",The format is acceptable to contain all the points required.,"Clear attention paid towards format, including a sense of branding/theme attached to it, and a professional look&feel.",,
+DEMO - Sellability,Your demo did not promote your solution well.,Your demo got the main points across.,"Your demo showed the ins & outs of the process, highlighting its potential.","Your demo was conference-level standards, making your solution stand out for its USP potential and a clear view for sellability.","Show 3 flows:
+
+Low‑severity threat → logged + explained
+
+High‑severity threat → blocked + explained
+
+Graph visualisation → highlight affected nodes
+
+And narrate the MTTR reduction."
+DEMO - Detail,Your demo lacked sufficient detail of implementation/processing.,"Your demo went into the basic functionality, with 1-2 additions on how things can/should work.","Your demo covered multiple user journeys or perspectives; prioritising engagement for different types of viewers (eg: the ""10 seconds"" watchers and the in-depth full watch)",,
+"Overall VALUE ADD: Is this a feasible solution, with room to explore further. Would I invest in this?",No.,"Yes, with some caveats.",Absolutely.,,"
+reduces MTTR
+
+increases analyst productivity
+
+provides explainability
+
+is lightweight
+
+is extensible"
