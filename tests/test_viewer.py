@@ -48,6 +48,7 @@ def test_viewer_serves_index_and_graph_json(tmp_path: Path) -> None:
         thread.join(timeout=2)
 
     assert "Pathfinder Viewer" in index_html
+    assert "Hide disconnected files by default" in index_html
     payload = json.loads(graph_json)
     assert payload["summary"]["file_count"] == 3
     assert payload["summary"]["structural_edge_count"] == 4

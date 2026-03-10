@@ -153,7 +153,62 @@ Example commands:
 * `python -m pathfinder.cli build-structural-graph --repo <repo> --output structural_graph.json`
 * `python -m pathfinder.cli serve-graph-viewer --graph structural_graph.json`
 
-The structural artifact currently includes:
+## How to use the structural graph and viewer
+
+### 1. Build a structural graph artifact
+
+Generate a Pathfinder structural graph JSON file for a repository:
+
+* `python -m pathfinder.cli build-structural-graph --repo /path/to/repo --output structural_graph.json`
+
+Optional: also persist the raw CodeGraph output for debugging:
+
+* `python -m pathfinder.cli build-structural-graph --repo /path/to/repo --output structural_graph.json --raw-codegraph-output raw_codegraph.json`
+
+The command prints a summary to stdout and writes a deterministic artifact containing file nodes, structural edges, summary counts, and diagnostics.
+
+### 2. Launch the viewer UI
+
+Serve the minimal built-in viewer against an existing structural graph artifact:
+
+* `python -m pathfinder.cli serve-graph-viewer --graph structural_graph.json`
+
+Then open:
+
+* `http://127.0.0.1:8000`
+
+You can change the bind address if needed:
+
+* `python -m pathfinder.cli serve-graph-viewer --graph structural_graph.json --host 0.0.0.0 --port 8080`
+
+### 3. Load a graph in the UI
+
+The UI supports two modes:
+
+* **server-backed mode** — if `--graph` is provided, the page loads the artifact automatically from `/api/graph`
+* **file-open mode** — if no graph is configured, start the viewer and use the file picker to open a local Pathfinder graph JSON file
+
+### 4. What the UI shows
+
+The current viewer is intentionally minimal and focused on structural inspection.
+
+It lets you:
+
+* render the structural graph on a canvas
+* color nodes by language
+* filter by file-path search
+* filter by language
+* filter by relationship type
+* click a node to inspect:
+  * file path
+  * language
+  * import count
+  * inbound and outbound degree
+  * incoming and outgoing neighbors
+
+### 5. What the generated graph contains
+
+The structural artifact currently contains:
 
 * `file` nodes
 * `structural_edges`
