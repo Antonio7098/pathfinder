@@ -33,7 +33,7 @@ This keeps the system grounded, demoable, and technically credible for an MVP.
 
 ## Current shipped slice
 
-The currently shipped implementation covers the **structural graph phase** only.
+The currently shipped implementation covers the **structural graph phase** plus a **post-path recommendation reporting phase boundary**.
 
 Implemented now:
 
@@ -42,14 +42,17 @@ Implemented now:
 * deterministic JSON artifact generation
 * provenance-rich structural edges
 * diagnostics and summary metadata
-* a minimal frontend for graph inspection
+* a reusable LLM interface layer using OpenRouter through the OpenAI SDK
+* a versioned recommendation report artifact that consumes an already-selected path plus focal files
+* structured LLM observability for prompt versions, rendered prompts, provider/model metadata, token usage, and timings
 
 Not yet shipped:
 
 * per-file LLM target/risk analysis
 * per-structural-edge attack-edge derivation
 * deterministic attack-path search
-* mitigation ranking and explanation over attack paths
+* automatic production of the selected path artifact itself
+* mitigation ranking during path search itself
 
 ---
 
@@ -323,7 +326,7 @@ Current shipped outputs:
 * structural file graph JSON
 * structural graph summary and diagnostics
 * optional raw CodeGraph artifact
-* minimal graph viewer
+* recommendation report input/output artifacts for post-path mitigation reporting
 
 Later-phase outputs:
 

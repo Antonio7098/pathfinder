@@ -36,7 +36,6 @@ Implemented now:
 * deterministic JSON artifact generation
 * provenance-rich structural edges
 * summary and diagnostics output
-* a minimal graph viewer for structural artifacts
 
 Not implemented yet:
 
@@ -247,18 +246,6 @@ Optional raw CodeGraph artifact output:
 
 `python -m pathfinder.cli build-structural-graph --repo <repo> --output structural_graph.json --raw-codegraph-output raw_codegraph.json`
 
-### View a structural graph
-
-Run:
-
-`python -m pathfinder.cli serve-graph-viewer --graph structural_graph.json`
-
-Then open:
-
-`http://127.0.0.1:8000`
-
----
-
 ## Testing and validation performed
 
 The structural phase has been validated with:
@@ -266,7 +253,6 @@ The structural phase has been validated with:
 * fixture-based tests for Python and TypeScript
 * reexport handling tests
 * generated-directory exclusion tests
-* viewer tests
 * real-repository smoke runs across multiple repositories
 
 For the current phase, the structural extractor is considered stable across representative Python, TypeScript, Rust, and mixed repos.

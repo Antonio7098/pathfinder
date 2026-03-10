@@ -42,6 +42,13 @@ And usually additional fields such as:
 * `structural_edge_count`
 * `graph_path`
 * `port`
+* `template_version`
+* `prompt_version`
+* `system_prompt_sha256`
+* `user_prompt_sha256`
+* `model`
+* `provider_request_id`
+* token-usage counters when available
 
 ### Why structured logs
 
@@ -58,7 +65,10 @@ Prefer logs that describe a meaningful lifecycle event, for example:
 * `structural_extraction.started`
 * `codegraph.build.completed`
 * `structural_graph.projected`
-* `viewer.server.started`
+* `llm.request.started`
+* `llm.request.prompt`
+* `llm.request.completed`
+* `recommendation_report.completed`
 
 Guidelines:
 
@@ -67,6 +77,8 @@ Guidelines:
 * include counts and durations when available
 * include file, graph, repository, or port context when relevant
 * keep logs factual; do not hide dropped or omitted data
+* for LLM-backed phases, log prompt/template versions, provider/model identity, prompt hashes, and rendered prompts at debug level
+* never log secrets such as API keys
 
 ### Example usage
 
@@ -154,6 +166,7 @@ Use:
 * `ProjectionError` for failures while mapping extractor output into Pathfinder graph semantics
 * `ValidationError` for schema/invariant violations in Pathfinder artifacts
 * `PersistenceError` for read/write/serialization failures
+* `ExternalDependencyError` for provider/runtime failures such as LLM transport or missing SDK/runtime integrations
 * `InternalInvariantError` when the program reaches contradictory internal state that should never happen
 
 ---
@@ -201,6 +214,8 @@ Examples:
 
 * raw CodeGraph document models in `pathfinder/adapters/codegraph_models.py`
 * structural graph artifact models in `pathfinder/structural/models.py`
+* recommendation report input/output models in `pathfinder/reporting/input_models.py` and `pathfinder/reporting/models.py`
+* reusable LLM boundary models in `pathfinder/llm/models.py`
 
 ### Invariant validation
 
