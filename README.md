@@ -101,6 +101,7 @@ Key docs:
 * `docs/ARCHITECTURE.md` — technical design, current structural architecture, and later attack-graph layers
 * `docs/GRAPH_SCHEMA.md` — schema guidance for the current structural artifact and later attack-graph extensions
 * `docs/STRUCTURAL_GRAPH_EXTRACTION.md` — implementation-focused reference for the shipped structural graph phase
+* `docs/ENGINEERING_CONVENTIONS.md` — structured logging, error taxonomy, and typing conventions
 
 ## Current repository structure
 

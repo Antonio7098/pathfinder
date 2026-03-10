@@ -3,6 +3,7 @@
 For the shipped implementation details of the current structural-only phase, see:
 
 * `docs/STRUCTURAL_GRAPH_EXTRACTION.md`
+* `docs/ENGINEERING_CONVENTIONS.md`
 
 ## Overview
 

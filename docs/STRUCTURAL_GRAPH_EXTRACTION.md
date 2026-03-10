@@ -21,6 +21,7 @@ Related docs:
 * `docs/ARCHITECTURE.md`
 * `docs/PRD.md`
 * `docs/GRAPH_SCHEMA.md`
+* `docs/ENGINEERING_CONVENTIONS.md`
 
 ---
 
