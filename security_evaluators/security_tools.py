@@ -53,21 +53,29 @@ class PathfinderAI:
         return self._finalize_node(data, file_path)
 
     def analyze_edge(self, structural_edge, source_node, target_node):
-        """Generates attack edges where the 'attack_type' is restricted to the specified list."""
+        """Generates a list of potential attack edges for a structural link."""
         prompt = f"""
         A structural link exists: {source_node['id']} --({structural_edge['relationship_type']})--> {target_node['id']}.
         
-        Determine the primary security risk of this transition.
-        The 'attack_type' MUST be exactly one of: {self.valid_attack_types}.
+        Analyze this connection and identify ALL likely security risks/attack paths. 
+        For each risk, create an entry in a list named 'attacks'.
         
-        Return JSON:
-        - attack_type: string
-        - transition_likelihood: float (0-1)
-        - required_capability: string (low/med/high)
-        - detection_risk: float (0-1)
-        - edge_attack_cost: float (non-negative)
-        - confidence: float (0-1)
-        - rationale: string (why this specific attack_type was chosen)
+        The 'attack_type' for each MUST be exactly one of: {self.valid_attack_types}.
+        
+        Return JSON format:
+        {{
+            "attacks": [
+                {{
+                    "attack_type": string,
+                    "transition_likelihood": float (0-1),
+                    "required_capability": string (low/med/high),
+                    "detection_risk": float (0-1),
+                    "edge_attack_cost": float (non-negative),
+                    "confidence": float (0-1),
+                    "rationale": string
+                }}
+            ]
+        }}
         """
 
         response = client.chat.completions.create(
@@ -75,20 +83,26 @@ class PathfinderAI:
             messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_object"},
         )
-        edge_data = json.loads(response.choices[0].message.content)
 
-        # Mapping to your Attack Edge schema
-        edge_data.update(
-            {
-                "id": f"ae:{structural_edge['id']}",
-                "edge_type": "attack_transition",
-                "source": source_node["id"],
-                "target": target_node["id"],
-                "structural_basis_edge_ids": [structural_edge["id"]],
-                "excluded_flag": False,
-            }
-        )
-        return edge_data
+        raw_data = json.loads(response.choices[0].message.content)
+        attack_list = raw_data.get("attacks", [])
+
+        processed_edges = []
+        for index, attack in enumerate(attack_list):
+            # Ensure unique ID by appending the index and attack type
+            attack.update(
+                {
+                    "id": f"ae:{structural_edge['id']}_{attack['attack_type']}_{index}",
+                    "edge_type": "attack_transition",
+                    "source": source_node["id"],
+                    "target": target_node["id"],
+                    "structural_basis_edge_ids": [structural_edge["id"]],
+                    "excluded_flag": False,
+                }
+            )
+            processed_edges.append(attack)
+
+        return processed_edges
 
     def _finalize_node(self, data, path):
         """Calculates normalized_risk_score (0-1) and formats node."""
@@ -113,6 +127,38 @@ class PathfinderAI:
         data["security_scores"]["normalized_risk_score"] = score
         return data
 
+    def calculate_aggregate_risk(self, node_data, attack_edges):
+        """
+        Calculates a more nuanced risk score based on the variety
+        and severity of all identified attack edges originating from this node.
+        (not currently in use)
+        """
+        if not attack_edges:
+            return node_data["normalized_risk_score"]
+
+        # 1. Impact: Find the most damaging potential attack
+        # We weight transition_likelihood and the inherent impact of the attack_type
+        impact_scores = []
+        for edge in attack_edges:
+            # High likelihood transitions to high-value targets rank highest
+            edge_impact = edge["transition_likelihood"] * (
+                1.0 - edge["edge_attack_cost"] / 100
+            )
+            impact_scores.append(edge_impact)
+
+        max_impact = max(impact_scores) if impact_scores else 0
+
+        # 2. Complexity: If there are MANY types of attacks, the risk is higher
+        multi_attack_penalty = min(len(attack_edges) * 0.05, 0.2)
+
+        # 3. Final Calculation
+        base_score = node_data["normalized_risk_score"]
+        refined_score = round(
+            min((base_score + max_impact + multi_attack_penalty) / 2, 1.0), 3
+        )
+
+        return refined_score
+
 
 class AttackGraphOrchestrator:
     def __init__(self, repo_root):
@@ -120,10 +166,6 @@ class AttackGraphOrchestrator:
         self.repo_root = repo_root
 
     def build_security_graph(self, file_paths, structural_edges):
-        """
-        Takes a list of relative file paths and structural edge dicts.
-        Returns the complete Canonical JSON graph.
-        """
         graph = {
             "graph_id": f"repo:{os.path.basename(self.repo_root)}",
             "version": "mvp-v1",
@@ -132,35 +174,31 @@ class AttackGraphOrchestrator:
             "attack_edges": [],
         }
 
-        # Step 1: Analyze Nodes
+        # Step 1: Analyze Nodes (Remains the same)
         node_cache = {}
         for rel_path in file_paths:
             full_path = os.path.join(self.repo_root, rel_path)
             node_data = self.ai.analyze_node(full_path)
-
-            # Apply your graph constraints
             node_data["entrypoint_flag"] = any(
                 x in rel_path for x in ["api", "web", "public"]
             )
             node_data["target_flag"] = any(
                 x in rel_path for x in ["db", "admin", "vault", "config"]
             )
-
             graph["nodes"].append(node_data)
             node_cache[rel_path] = node_data
 
-        # Step 2: Analyze Attack Edges
+        # Step 2: Analyze Attack Edges (Modified to handle multiple edges)
         for se in structural_edges:
             src_id = se["source"]
             tgt_id = se["target"]
 
             if src_id in node_cache and tgt_id in node_cache:
-                attack_edge = self.ai.analyze_edge(
+                # This now returns a list of attack edges
+                list_of_attacks = self.ai.analyze_edge(
                     se, node_cache[src_id], node_cache[tgt_id]
                 )
-
-                # Check constraints: edge must reference existing nodes
-                graph["attack_edges"].append(attack_edge)
+                graph["attack_edges"].extend(list_of_attacks)
 
         return graph
 
