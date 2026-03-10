@@ -9,13 +9,14 @@ from time import perf_counter
 from pydantic import BaseModel, ConfigDict
 
 from pathfinder.llm import LLMProvider, OpenAIStructuredLLMClient, OpenRouterSettings, StructuredLLMRequest
+from pathfinder.llm.models import LLMInvocationRecord
+from pathfinder.llm.prompts.recommendation_report import RecommendationReportPromptContext, RecommendationReportPromptRegistry
 from pathfinder.observability.logging import log_event
-from pathfinder.reporting.context import ReportContextBuilder
+from pathfinder.reporting.context import ReportContextBuilder, ReportContextBundle
 from pathfinder.reporting.enums import RecommendationTemplateVersion
 from pathfinder.reporting.input_models import RecommendationReportInputArtifact
 from pathfinder.reporting.io import read_recommendation_report_input, write_recommendation_report
-from pathfinder.reporting.models import LLMRecommendationItem, RecommendationItem, RecommendationPathOverview, RecommendationReportArtifact, RecommendationReportDiagnostics, RecommendationReportSummary
-from pathfinder.reporting.templates import RecommendationTemplateRegistry
+from pathfinder.reporting.models import LLMRecommendationItem, LLMRecommendationReportPayload, RecommendationItem, RecommendationPathOverview, RecommendationReportArtifact, RecommendationReportDiagnostics, RecommendationReportSummary
 
 
 class RecommendationReportRequest(BaseModel):
@@ -44,13 +45,13 @@ class RecommendationReportService:
         llm_client,
         model: str,
         context_builder: ReportContextBuilder | None = None,
-        template_registry: RecommendationTemplateRegistry | None = None,
+        prompt_registry: RecommendationReportPromptRegistry | None = None,
     ) -> None:
         self._logger = logger
         self._llm_client = llm_client
         self._model = model
         self._context_builder = context_builder or ReportContextBuilder(logger)
-        self._template_registry = template_registry or RecommendationTemplateRegistry()
+        self._prompt_registry = prompt_registry or RecommendationReportPromptRegistry()
 
     def run(self, request: RecommendationReportRequest) -> RecommendationReportResult:
         started = perf_counter()
@@ -72,14 +73,19 @@ class RecommendationReportService:
             max_files=request.max_files,
             max_file_chars=request.max_file_chars,
         )
-        template = self._template_registry.resolve(request.template_version)
-        prompt = template.render(input_artifact, context_bundle)
+        prompt_template = self._prompt_registry.resolve(request.template_version)
+        prompt = prompt_template.render(
+            RecommendationReportPromptContext(
+                input_artifact=input_artifact,
+                context_bundle=context_bundle,
+            )
+        )
         llm_result = self._llm_client.generate(
             StructuredLLMRequest(
                 provider=LLMProvider.OPENROUTER,
                 model=self._model,
                 operation_name="recommendation_report.generate",
-                response_format_name=self._template_registry.response_model().__name__,
+                response_format_name=self._prompt_registry.response_model().__name__,
                 prompt=prompt,
                 timeout_seconds=request.timeout_seconds,
                 metadata={
@@ -87,7 +93,7 @@ class RecommendationReportService:
                     "template_version": request.template_version.value,
                 },
             ),
-            response_model=self._template_registry.response_model(),
+            response_model=self._prompt_registry.response_model(),
         )
         artifact = self._build_artifact(
             input_artifact=input_artifact,
@@ -118,9 +124,9 @@ class RecommendationReportService:
         *,
         input_artifact: RecommendationReportInputArtifact,
         template_version: RecommendationTemplateVersion,
-        context_bundle,
-        llm_payload,
-        llm_invocation,
+        context_bundle: ReportContextBundle,
+        llm_payload: LLMRecommendationReportPayload,
+        llm_invocation: LLMInvocationRecord,
     ) -> RecommendationReportArtifact:
         recommendations = [self._recommendation_from_llm_item(index=index, item=item) for index, item in enumerate(llm_payload.recommendations, start=1)]
         known_file_paths = self._known_file_paths(input_artifact)

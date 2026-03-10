@@ -15,9 +15,10 @@ It starts **after** an upstream phase has already selected a path.
 ## Implemented modules
 
 * `pathfinder/llm/` — reusable provider-agnostic structured LLM interface and the OpenRouter/OpenAI SDK adapter
+* `pathfinder/llm/prompts/` — centralized versioned prompt registries and prompt builders
+* `pathfinder/llm/prompts/recommendation_report_v1.py` — concrete prompt implementation for recommendation report v1
 * `pathfinder/reporting/input_models.py` — versioned path/report input artifact
 * `pathfinder/reporting/models.py` — versioned recommendation report artifact
-* `pathfinder/reporting/templates.py` — versioned prompt templates
 * `pathfinder/reporting/context.py` — deterministic file-context collection and truncation/drop diagnostics
 * `pathfinder/reporting/service.py` — orchestration and CLI-facing service
 
@@ -129,6 +130,8 @@ The key reusable contracts are:
 * `StructuredLLMRequest`
 * `StructuredPrompt`
 * `LLMInvocationRecord`
+* `VersionedPromptRegistry`
+* `VersionedPromptTemplate`
 
 ## Testing
 

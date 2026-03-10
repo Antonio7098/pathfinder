@@ -96,8 +96,8 @@ Current observability includes:
 Important directories:
 
 * `pathfinder/structural/` — structural graph models, projection, I/O, service layer
-* `pathfinder/reporting/` — recommendation report models, templates, I/O, service layer
-* `pathfinder/llm/` — reusable LLM abstractions and OpenRouter adapter
+* `pathfinder/reporting/` — recommendation report models, I/O, and service layer
+* `pathfinder/llm/` — reusable LLM abstractions, centralized versioned prompts, and OpenRouter adapter
 * `pathfinder/observability/` — structured logging helpers
 * `tests/` — fixtures and automated tests
 * `docs/` — product, architecture, schema, and implementation docs
