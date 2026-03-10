@@ -9,8 +9,8 @@ from pathlib import Path
 
 from pathfinder.errors import PathfinderError
 from pathfinder.observability.logging import configure_logging, get_logger
+from pathfinder.reporting.service import RecommendationReportRequest, create_openrouter_recommendation_report_service
 from pathfinder.structural.service import StructuralExtractionRequest, StructuralExtractionService
-from pathfinder.viewer.server import GraphViewerConfig, serve_graph_viewer
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -25,11 +25,15 @@ def build_parser() -> argparse.ArgumentParser:
     build.add_argument("--strict-parse", action="store_true", help="Fail extraction on parse errors")
     build.add_argument("--verbose", action="store_true", help="Enable debug logging")
 
-    viewer = subparsers.add_parser("serve-graph-viewer", help="Serve a minimal frontend for viewing Pathfinder graph artifacts")
-    viewer.add_argument("--graph", type=Path, default=None, help="Optional Pathfinder structural graph artifact to expose at /api/graph")
-    viewer.add_argument("--host", default="127.0.0.1", help="Host interface to bind")
-    viewer.add_argument("--port", type=int, default=8000, help="Port to bind")
-    viewer.add_argument("--verbose", action="store_true", help="Enable debug logging")
+    report = subparsers.add_parser("generate-recommendation-report", help="Generate a grounded mitigation report from a selected path input artifact")
+    report.add_argument("--input", type=Path, required=True, help="Recommendation report input artifact JSON")
+    report.add_argument("--output", type=Path, default=Path("recommendation_report.json"), help="Output path for recommendation report JSON")
+    report.add_argument("--template-version", default="recommendation-report-v1", help="Recommendation prompt template version")
+    report.add_argument("--model", default=None, help="Optional OpenRouter model override")
+    report.add_argument("--max-files", type=int, default=8, help="Maximum number of repository files to include in prompt context")
+    report.add_argument("--max-file-chars", type=int, default=4000, help="Maximum characters to include per file")
+    report.add_argument("--timeout-seconds", type=float, default=60.0, help="Per-request LLM timeout in seconds")
+    report.add_argument("--verbose", action="store_true", help="Enable debug logging")
     return parser
 
 
@@ -53,11 +57,24 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(result.artifact.summary.model_dump(mode="json"), sort_keys=True))
             return 0
 
-        if args.command == "serve-graph-viewer":
-            return serve_graph_viewer(
-                GraphViewerConfig(graph_path=args.graph, host=args.host, port=args.port),
+        if args.command == "generate-recommendation-report":
+            service = create_openrouter_recommendation_report_service(
                 logger,
+                model_override=args.model,
+                timeout_seconds=args.timeout_seconds,
             )
+            result = service.run(
+                RecommendationReportRequest(
+                    input_path=args.input,
+                    output_path=args.output,
+                    template_version=args.template_version,
+                    max_files=args.max_files,
+                    max_file_chars=args.max_file_chars,
+                    timeout_seconds=args.timeout_seconds,
+                )
+            )
+            print(json.dumps(result.artifact.summary.model_dump(mode="json"), sort_keys=True))
+            return 0
 
         parser.error(f"Unsupported command: {args.command}")
     except PathfinderError as exc:

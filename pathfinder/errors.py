@@ -13,6 +13,7 @@ class ErrorCategory(StrEnum):
     PROJECTION = "projection_error"
     VALIDATION = "validation_error"
     PERSISTENCE = "persistence_error"
+    EXTERNAL_DEPENDENCY = "external_dependency_error"
     INTERNAL_INVARIANT = "internal_invariant_violation"
 
 
@@ -65,6 +66,11 @@ class ValidationError(PathfinderError):
 class PersistenceError(PathfinderError):
     def __init__(self, message: str, *, context: Mapping[str, object] | None = None) -> None:
         super().__init__(message, category=ErrorCategory.PERSISTENCE, context=context)
+
+
+class ExternalDependencyError(PathfinderError):
+    def __init__(self, message: str, *, context: Mapping[str, object] | None = None) -> None:
+        super().__init__(message, category=ErrorCategory.EXTERNAL_DEPENDENCY, context=context)
 
 
 class InternalInvariantError(PathfinderError):

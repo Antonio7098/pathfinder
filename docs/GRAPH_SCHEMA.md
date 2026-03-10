@@ -32,6 +32,13 @@ The repository currently implements the **structural subset** of this schema:
 
 Attack-edge materialization and LLM scoring remain later phases.
 
+Separately, the repository now implements a **post-search recommendation reporting boundary** that is intentionally not folded into the graph schema:
+
+* `RecommendationReportInputArtifact`
+* `RecommendationReportArtifact`
+
+Those artifacts consume selected paths and file context after search; they do not redefine graph nodes or edges.
+
 ---
 
 ## Recommended Graph Model
