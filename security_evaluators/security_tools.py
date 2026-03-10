@@ -1,8 +1,13 @@
 import os
 import json
 from openai import OpenAI
+from dotenv import load_dotenv
 
-client = OpenAI(api_key="YOUR_OPENAI_API_KEY")
+load_dotenv()
+
+OPEN_AI_KEY = os.getenv("OPEN_AI_KEY")
+
+client = OpenAI(api_key=OPEN_AI_KEY)
 
 
 class PathfinderAI:
