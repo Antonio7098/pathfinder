@@ -48,6 +48,12 @@ Run the full demo pipeline:
   --timeout-seconds 600
 ```
 
+Then open the generated dashboard:
+
+```bash
+xdg-open demo-output/dashboard.html
+```
+
 Build a structural graph:
 
 * `python -m pathfinder.cli build-structural-graph --repo /path/to/repo --output structural_graph.json`
@@ -89,6 +95,12 @@ Recommended demo command:
   --graph-mode service \
   --provider minimax \
   --timeout-seconds 600
+```
+
+View the HTML dashboard:
+
+```bash
+xdg-open demo-output/dashboard.html
 ```
 
 ## Output artifacts
