@@ -2,26 +2,32 @@ import os
 import json
 from openai import OpenAI
 from dotenv import load_dotenv
+from pprint import pprint
 
 load_dotenv()
 
 OPEN_AI_KEY = os.getenv("OPEN_AI_KEY")
 
-client = OpenAI(api_key=OPEN_AI_KEY)
+client = OpenAI(api_key=OPEN_AI_KEY, base_url="https://openrouter.ai/api/v1")
 
 
 class PathfinderAI:
-    def __init__(self, model="gpt-4o"):
+
+    def __init__(
+        self, model="gpt-4o"
+    ):  # Default is not very good, better to use something like gpt-5.3-codex
         self.model = model
         # The allowed attack types for edges as requested
         self.valid_attack_types = [
-            "exploitability",
-            "privilege_gain",
-            "data_access_value",
-            "lateral_movement_value",
-            "detection_risk",
-            "confidence",
-            "normalized_risk_score",
+            "sql_injection",
+            "broken_authentication",
+            "broken_authorization",
+            "idor",
+            "unsafe_deserialization",
+            "command_injection",
+            "session_abuse",
+            "privilege_propagation",
+            "unsafe_database_access",
         ]
 
     def analyze_node(self, file_path):
@@ -30,30 +36,53 @@ class PathfinderAI:
             code = f.read()
 
         prompt = """
-        Analyze this code and return a JSON object for a security node.
+        Analyze this code and return a JSON object for a security summary.
         All security_scores must be floats between 0.0 and 1.0.
         
-        Fields:
-        - tags: list of strings
-        - confidence: float (0-1)
-        - rationale: string (reasons for these ratings)
-        - security_scores: {{
-            "exploitability": float (0-1), "privilege_gain": float (0-1), 
-            "data_access_value": float (0-1), "lateral_movement_value": float (0-1), 
-            "detection_risk": float (0-1), "confidence": float (0-1)
-        }}
+        Structure:
+        {
+            tags: list of strings; optional labels relevant to the file
+            confidence: float (0-1); confidence in this assessment 
+            rationale: string (reasons for these ratings)
+            security_scores: {
+                "exploitability": float (0-1),
+                "privilege_gain": float (0-1), 
+                "data_access_value": float (0-1),
+                "lateral_movement_value": float (0-1), 
+                "detection_risk": float (0-1),
+                "confidence": float (0-1)
+            }
+        }
         """
 
         response = client.chat.completions.create(
             model=self.model,
-            messages=[{"role": "user", "content": f"FILE: {file_path}\nCODE:\n{code}"}],
+            messages=[
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": f"FILE: {file_path}\nCODE:\n{code}"},
+            ],
             response_format={"type": "json_object"},
         )
         data = json.loads(response.choices[0].message.content)
+
+        # pprint(data)
+        # exit()
+
         return self._finalize_node(data, file_path)
 
     def analyze_edge(self, structural_edge, source_node, target_node):
         """Generates a list of potential attack edges for a structural link."""
+
+        with open(source_node["id"], "r", encoding="utf-8") as f:
+            source_code = f.read()
+
+        with open(target_node["id"], "r", encoding="utf-8") as f:
+            target_code = f.read()
+
+        print("-" * 50)
+        print("got data")
+        print("-" * 50)
+
         prompt = f"""
         A structural link exists: {source_node['id']} --({structural_edge['relationship_type']})--> {target_node['id']}.
         
@@ -77,16 +106,31 @@ class PathfinderAI:
             ]
         }}
         """
+        print("-" * 50)
+        print("got prompt")
+        print("-" * 50)
 
         response = client.chat.completions.create(
             model=self.model,
-            messages=[{"role": "user", "content": prompt}],
+            messages=[
+                {"role": "system", "content": prompt},
+                {
+                    "role": "user",
+                    "content": f"SOURCE FILE: {source_node['id']}\nCODE:\n{source_code}\n\nTARGET FILE: {target_node['id']}\nCODE:\n{target_code}",
+                },
+            ],
             response_format={"type": "json_object"},
         )
+        print("-" * 50)
+        print("got response")
+        print("-" * 50)
 
         raw_data = json.loads(response.choices[0].message.content)
         attack_list = raw_data.get("attacks", [])
 
+        print("-" * 50)
+        print("got preprocessed edges")
+        print("-" * 50)
         processed_edges = []
         for index, attack in enumerate(attack_list):
             # Ensure unique ID by appending the index and attack type
@@ -101,6 +145,9 @@ class PathfinderAI:
                 }
             )
             processed_edges.append(attack)
+        print("-" * 50)
+        print("got postprocessed edges")
+        print("-" * 50)
 
         return processed_edges
 
