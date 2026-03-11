@@ -79,10 +79,6 @@ class PathfinderAI:
         with open(target_node["id"], "r", encoding="utf-8") as f:
             target_code = f.read()
 
-        print("-" * 50)
-        print("got data")
-        print("-" * 50)
-
         prompt = f"""
         A structural link exists: {source_node['id']} --({structural_edge['relationship_type']})--> {target_node['id']}.
         
@@ -106,9 +102,6 @@ class PathfinderAI:
             ]
         }}
         """
-        print("-" * 50)
-        print("got prompt")
-        print("-" * 50)
 
         response = client.chat.completions.create(
             model=self.model,
@@ -121,19 +114,12 @@ class PathfinderAI:
             ],
             response_format={"type": "json_object"},
         )
-        print("-" * 50)
-        print("got response")
-        print("-" * 50)
 
         raw_data = json.loads(response.choices[0].message.content)
         attack_list = raw_data.get("attacks", [])
 
-        print("-" * 50)
-        print("got preprocessed edges")
-        print("-" * 50)
         processed_edges = []
         for index, attack in enumerate(attack_list):
-            # Ensure unique ID by appending the index and attack type
             attack.update(
                 {
                     "id": f"ae:{structural_edge['id']}_{attack['attack_type']}_{index}",
@@ -145,9 +131,6 @@ class PathfinderAI:
                 }
             )
             processed_edges.append(attack)
-        print("-" * 50)
-        print("got postprocessed edges")
-        print("-" * 50)
 
         return processed_edges
 
