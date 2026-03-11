@@ -127,6 +127,7 @@ Important directories:
 ## Key docs
 
 * `docs/ARCHITECTURE.md` — architecture and phase boundaries
+* `docs/ATTACK_GRAPH_ENGINE.md` - attack path construction and visualisation
 * `docs/GRAPH_SCHEMA.md` — structural graph schema guidance
 * `docs/STRUCTURAL_GRAPH_EXTRACTION.md` — structural extraction implementation details
 * `docs/SERVICE_GROUPING.md` — service grouping overlay artifacts, CLI usage, and derivation rules
