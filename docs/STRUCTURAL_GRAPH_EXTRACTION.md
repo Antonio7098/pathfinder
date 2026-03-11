@@ -64,6 +64,9 @@ In code, the main pieces are:
 * `pathfinder/structural/models.py`
 * `pathfinder/structural/service.py`
 
+For clarity: the current Graphcode-derived context later used by service grouping is
+based on CodeGraph file/symbol summaries and does **not** include `.env` file contents.
+
 ---
 
 ## Extraction backbone
@@ -231,6 +234,10 @@ Examples include:
 * `coverage`
 
 This keeps the structural graph focused on real source relationships rather than environment noise.
+
+This default directory filtering is separate from the bounded Graphcode summaries used by
+LLM-facing service grouping prompts, which are code/symbol-oriented and do not carry raw
+`.env` file contents.
 
 ---
 

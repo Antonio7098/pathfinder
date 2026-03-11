@@ -51,7 +51,7 @@ def build_structural_artifact_from_repo(repo_path: Path, repo_name: str, tmp_pat
 def build_invocation() -> LLMInvocationRecord:
     prompt = StructuredPrompt(
         template_version="service-grouping-v1",
-        prompt_version="service-grouping-prompt-v3",
+        prompt_version="service-grouping-prompt-v5",
         system_prompt="system",
         user_prompt="user",
         system_prompt_sha256="sys",

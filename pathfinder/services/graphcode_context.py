@@ -1,4 +1,9 @@
-"""Bounded graphcode evidence summaries for service-grouping prompts."""
+"""Bounded graphcode evidence summaries for service-grouping prompts.
+
+The current service-grouping Graphcode context is derived from CodeGraph file/symbol
+blocks and bounded summaries of those blocks. It is code-oriented context rather than
+raw repository mirroring, and it does not include `.env` file contents.
+"""
 
 from __future__ import annotations
 
