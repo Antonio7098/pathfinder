@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pathfinder Pipeline</title>
+</head>
+<body>
+
+<h1>Run Pathfinder Pipeline</h1>
+
+<form action="/run" method="post">
+
+<label>Repository Path</label><br>
+<input type="text" name="repo" placeholder="/path/to/repo" required>
+<br><br>
+
+<label>Graph Mode</label><br>
+<select name="graph_mode">
+  <option value="service">Service</option>
+  <option value="module">Module</option>
+</select>
+
+<br><br>
+
+<button type="submit">Run Pipeline</button>
+
+</form>
+
+</body>
+</html>
