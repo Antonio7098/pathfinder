@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 from pathlib import Path
 
 from pathfinder.evaluation import PricingConfig, SecurityEvaluationRequest, SecurityEvaluationService, read_evaluation_dataset
@@ -140,6 +141,7 @@ def test_security_evaluation_service_runs_against_manual_dataset(tmp_path: Path)
     )
 
     assert result.output_path.exists()
+    assert result.csv_output_path.exists()
     assert result.artifact.summary.file_risk.label_accuracy == 1.0
     assert result.artifact.summary.attack_edges.presence_f1 == 1.0
     assert result.artifact.summary.attack_edges.relaxed_attack_type_accuracy == 1.0
@@ -148,3 +150,10 @@ def test_security_evaluation_service_runs_against_manual_dataset(tmp_path: Path)
     assert result.artifact.summary.runtime.total_output_tokens == (11 * 20) + (10 * 30)
     assert result.artifact.summary.runtime.estimated_total_cost_usd is not None
     assert result.artifact.diagnostics.missing_cost_case_ids == []
+
+    rows = list(csv.DictReader(result.csv_output_path.open(encoding="utf-8")))
+    assert len(rows) == 21
+    assert rows[0]["case_type"] == "file_risk"
+    assert rows[-1]["case_type"] == "attack_edge"
+    assert rows[0]["file_path"] != ""
+    assert rows[-1]["structural_edge_id"] != ""

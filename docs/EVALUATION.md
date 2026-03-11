@@ -79,7 +79,9 @@ Negative examples are especially important because they measure whether the mode
 
 ## Run artifacts
 
-Each evaluation run produces a persisted JSON artifact containing:
+Each evaluation run produces both a persisted JSON artifact and a flattened CSV export.
+
+The JSON artifact contains:
 
 * dataset identity
 * provider and model
@@ -95,6 +97,18 @@ Example output locations:
 
 * `artifacts/evaluation/openrouter_demo_vuln_repo_eval.json`
 * `artifacts/evaluation/minimax_demo_vuln_repo_eval.json`
+
+The CSV export is written beside the JSON output by default, for example:
+
+* `artifacts/evaluation/openrouter_demo_vuln_repo_eval.csv`
+* `artifacts/evaluation/minimax_demo_vuln_repo_eval.csv`
+
+The CSV contains one row per evaluated case:
+
+* `file_risk` rows for file-level cases
+* `attack_edge` rows for structural-edge cases
+
+It is intended as a simple spreadsheet-friendly view of the run results.
 
 ## Metrics
 
@@ -171,6 +185,7 @@ Use the CLI command:
 Optional flags:
 
 * `--repo` to override the dataset repo path
+* `--csv-output` to override the default CSV output path
 * `--risk-threshold` to control binary high-risk scoring
 * `--timeout-seconds` for per-request timeout
 * `--max-output-tokens` to constrain model output

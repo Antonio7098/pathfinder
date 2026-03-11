@@ -84,6 +84,7 @@ def build_parser() -> argparse.ArgumentParser:
     security_eval = subparsers.add_parser("run-security-eval", help="Evaluate file-risk classification and attack-edge derivation against a manual golden dataset")
     security_eval.add_argument("--dataset", type=Path, required=True, help="Manual golden dataset JSON")
     security_eval.add_argument("--output", type=Path, default=Path("security_evaluation_run.json"), help="Output path for evaluation run JSON")
+    security_eval.add_argument("--csv-output", type=Path, default=None, help="Optional output path for flattened evaluation CSV; defaults to the JSON output path with a .csv suffix")
     security_eval.add_argument("--repo", type=Path, default=None, help="Optional repository path override; defaults to dataset repo_path")
     security_eval.add_argument("--provider", choices=("openrouter", "minimax"), default="openrouter", help="LLM provider for evaluation")
     security_eval.add_argument("--model", default=None, help="Optional model override")
@@ -228,6 +229,7 @@ def main(argv: list[str] | None = None) -> int:
                 SecurityEvaluationRequest(
                     dataset_path=args.dataset,
                     output_path=args.output,
+                    csv_output_path=args.csv_output,
                     repo_path=args.repo,
                     provider=args.provider,
                     model=args.model,
@@ -247,6 +249,7 @@ def main(argv: list[str] | None = None) -> int:
                         "model_profile": result.artifact.model_profile.model_dump(mode="json") if result.artifact.model_profile is not None else None,
                         "pricing": result.artifact.pricing.model_dump(mode="json") if result.artifact.pricing is not None else None,
                         "output_path": str(result.output_path),
+                        "csv_output_path": str(result.csv_output_path),
                         "runtime": result.artifact.summary.runtime.model_dump(mode="json"),
                         "file_risk": result.artifact.summary.file_risk.model_dump(mode="json"),
                         "attack_edges": result.artifact.summary.attack_edges.model_dump(mode="json"),

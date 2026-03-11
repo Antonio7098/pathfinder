@@ -24,6 +24,7 @@ def test_cli_run_security_eval(monkeypatch, tmp_path: Path, capsys) -> None:
         def run(self, request):
             assert request.dataset_path == tmp_path / "dataset.json"
             assert request.output_path == tmp_path / "out.json"
+            assert request.csv_output_path is None
             return SecurityEvaluationResult(
                 artifact=EvaluationRunArtifact(
                     run_id="eval:test:openrouter:fake",
@@ -47,6 +48,7 @@ def test_cli_run_security_eval(monkeypatch, tmp_path: Path, capsys) -> None:
                     diagnostics=EvaluationRunDiagnostics(),
                 ),
                 output_path=request.output_path,
+                csv_output_path=tmp_path / "out.csv",
                 duration_seconds=0.1,
             )
 
@@ -66,3 +68,4 @@ def test_cli_run_security_eval(monkeypatch, tmp_path: Path, capsys) -> None:
     payload = json.loads(capsys.readouterr().out.strip())
     assert payload["run_id"] == "eval:test:openrouter:fake"
     assert payload["output_path"].endswith("out.json")
+    assert payload["csv_output_path"].endswith("out.csv")

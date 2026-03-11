@@ -9,7 +9,7 @@ from time import perf_counter
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from pathfinder.evaluation.io import read_evaluation_dataset, write_evaluation_run
+from pathfinder.evaluation.io import read_evaluation_dataset, write_evaluation_run, write_evaluation_run_csv
 from pathfinder.evaluation.metrics import build_attack_edge_metrics, build_file_risk_metrics, build_runtime_metrics
 from pathfinder.evaluation.models import (
     AttackEdgeEvaluationResult,
@@ -34,6 +34,7 @@ class SecurityEvaluationRequest(BaseModel):
 
     dataset_path: Path
     output_path: Path
+    csv_output_path: Path | None = None
     repo_path: Path | None = None
     provider: LLMProvider = LLMProvider.OPENROUTER
     model: str | None = None
@@ -47,6 +48,7 @@ class SecurityEvaluationRequest(BaseModel):
 class SecurityEvaluationResult:
     artifact: EvaluationRunArtifact
     output_path: Path
+    csv_output_path: Path
     duration_seconds: float
 
 
@@ -57,6 +59,7 @@ class SecurityEvaluationService:
 
     def run(self, request: SecurityEvaluationRequest) -> SecurityEvaluationResult:
         started = perf_counter()
+        csv_output_path = self._resolve_csv_output_path(request.output_path, request.csv_output_path)
         dataset = read_evaluation_dataset(request.dataset_path)
         repo_root = self._resolve_repo_root(dataset.repo_path, request.dataset_path, request.repo_path)
         if not repo_root.exists() or not repo_root.is_dir():
@@ -143,6 +146,7 @@ class SecurityEvaluationService:
             diagnostics=diagnostics,
         )
         write_evaluation_run(artifact, request.output_path)
+        write_evaluation_run_csv(artifact, csv_output_path)
         duration_seconds = perf_counter() - started
         log_event(
             self._logger,
@@ -150,6 +154,7 @@ class SecurityEvaluationService:
             fields={
                 "dataset_id": dataset.dataset_id,
                 "output_path": str(request.output_path),
+                "csv_output_path": str(csv_output_path),
                 "provider": request.provider.value,
                 "model": ai.model,
                 "completed_case_count": artifact.summary.completed_case_count,
@@ -158,7 +163,12 @@ class SecurityEvaluationService:
                 "duration_seconds": round(duration_seconds, 6),
             },
         )
-        return SecurityEvaluationResult(artifact=artifact, output_path=request.output_path, duration_seconds=duration_seconds)
+        return SecurityEvaluationResult(
+            artifact=artifact,
+            output_path=request.output_path,
+            csv_output_path=csv_output_path,
+            duration_seconds=duration_seconds,
+        )
 
     def _default_ai_factory(
         self,
@@ -197,6 +207,11 @@ class SecurityEvaluationService:
         if repo_path.is_absolute():
             return repo_path
         return (dataset_path.parent / repo_path).resolve()
+
+    def _resolve_csv_output_path(self, output_path: Path, override: Path | None) -> Path:
+        if override is not None:
+            return override
+        return output_path.with_suffix(".csv")
 
     def _evaluate_file_case(self, *, ai, repo_root: Path, case, risk_threshold: float, pricing: PricingConfig | None, missing_file_paths: list[str]) -> FileRiskEvaluationResult:
         expected_high_risk = case.expected_risk_label.value in {"high", "critical"}
