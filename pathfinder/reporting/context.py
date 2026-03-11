@@ -54,7 +54,7 @@ class ReportContextBuilder:
         max_files: int,
         max_file_chars: int,
     ) -> ReportContextBundle:
-        path_file_paths = [node.path for node in input_artifact.path_nodes]
+        path_file_paths = self._path_file_paths(input_artifact)
         extra_file_paths = sorted(reference.path for reference in input_artifact.focal_files if reference.path not in set(path_file_paths))
         requested_paths = path_file_paths + extra_file_paths
         included_paths = requested_paths[:max_files]
@@ -118,3 +118,14 @@ class ReportContextBuilder:
             },
         )
         return bundle
+
+    def _path_file_paths(self, input_artifact: RecommendationReportInputArtifact) -> list[str]:
+        seen: set[str] = set()
+        ordered_paths: list[str] = []
+        for node in input_artifact.path_nodes:
+            for path in node.backing_file_paths or [node.path]:
+                if path in seen:
+                    continue
+                seen.add(path)
+                ordered_paths.append(path)
+        return ordered_paths

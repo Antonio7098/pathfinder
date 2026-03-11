@@ -21,7 +21,7 @@ These later phases are still planned:
 * per-file target/risk analysis
 * per-structural-edge attack-edge derivation
 * deterministic path search over attack edges
-* automatic generation of the selected path artifact that feeds the report step
+* automatic path selection/ranking from scored attack graphs
 
 ## Current architecture shape
 
@@ -49,6 +49,14 @@ Generate a recommendation report from a path input artifact:
 
 * `python -m pathfinder.cli generate-recommendation-report --input recommendation_input.json --output recommendation_report.json`
 
+Build a recommendation report input artifact from an existing graph path:
+
+* `python -m pathfinder.cli build-recommendation-input --graph-scope file --structural-graph structural_graph.json --path-node-id web/routes.py --path-node-id pkg/service.py --path-node-id pkg/db.py --output recommendation_input.json`
+
+Build a recommendation report input artifact from a service path while keeping file-grounded evidence:
+
+* `python -m pathfinder.cli build-recommendation-input --graph-scope service --structural-graph structural_graph.json --service-graph service_graph.json --grouping service_grouping.json --path-node-id svc:web --path-node-id svc:app --path-node-id svc:data --output recommendation_input.json`
+
 Infer services from a structural graph artifact:
 
 * `python -m pathfinder.cli identify-services --input structural_graph.json --output service_grouping.json`
@@ -73,9 +81,12 @@ The structural graph artifact contains:
 
 The recommendation flow consumes a versioned input artifact containing:
 
+* `graph_scope` (`file` or `service`)
 * ordered path nodes
 * ordered path edges
 * focal files
+
+In service scope, each path node still carries grounded backing file paths so reporting remains file-evidence-based.
 
 and produces a versioned report artifact containing:
 
@@ -118,6 +129,7 @@ Important directories:
 * `pathfinder/structural/` — structural graph models, projection, I/O, service layer
 * `pathfinder/services/` — service grouping models, deterministic service graph derivation, I/O, service layer
 * `pathfinder/reporting/` — recommendation report models, I/O, and service layer
+* `pathfinder/analysis/` — shared read-only graph adapters for downstream stages that can run on file or service graphs
 * `pathfinder/llm/` — reusable LLM abstractions, centralized versioned prompts, and OpenRouter adapter
 * `pathfinder/observability/` — structured logging helpers
 * `tests/` — fixtures and automated tests
@@ -135,4 +147,4 @@ Important directories:
 
 ## Current one-line summary
 
-Today, Pathfinder can build a structural file graph, derive an optional service overlay from it, and generate a grounded mitigation report once an upstream step has already selected the path to analyze.
+Today, Pathfinder can build a structural file graph, derive an optional service overlay from it, deterministically build report-input artifacts from either graph scope, and generate a grounded mitigation report from that selected path.

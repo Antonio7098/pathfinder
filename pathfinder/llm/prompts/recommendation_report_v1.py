@@ -20,10 +20,15 @@ def render_recommendation_report_v1(context) -> tuple[str, str]:
     )
     payload = {
         "repo_path": input_artifact.repo_path,
+        "graph_scope": input_artifact.graph_scope.value,
         "path_id": input_artifact.path_id,
         "path_nodes": [node.model_dump(mode="json") for node in input_artifact.path_nodes],
         "path_edges": [edge.model_dump(mode="json") for edge in input_artifact.path_edges],
-        "known_file_paths": [node.path for node in input_artifact.path_nodes] + [item.path for item in input_artifact.focal_files],
+        "known_file_paths": [
+            path
+            for node in input_artifact.path_nodes
+            for path in (node.backing_file_paths or [node.path])
+        ] + [item.path for item in input_artifact.focal_files],
         "context_summary": context_bundle.summary.model_dump(mode="json"),
         "files": [item.model_dump(mode="json") for item in context_bundle.files],
         "missing_file_paths": context_bundle.missing_file_paths,

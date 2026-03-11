@@ -10,6 +10,15 @@ from pathfinder.reporting.input_models import RecommendationReportInputArtifact
 from pathfinder.reporting.models import RecommendationReportArtifact
 
 
+def write_recommendation_report_input(artifact: RecommendationReportInputArtifact, output_path: Path) -> None:
+    try:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = json.dumps(artifact.model_dump(mode="json"), indent=2, sort_keys=True)
+        output_path.write_text(payload + "\n", encoding="utf-8")
+    except Exception as exc:
+        raise PersistenceError("Failed to write recommendation report input artifact", context={"output_path": str(output_path), "cause": str(exc)}) from exc
+
+
 def read_recommendation_report_input(input_path: Path) -> RecommendationReportInputArtifact:
     try:
         return RecommendationReportInputArtifact.model_validate_json(input_path.read_text(encoding="utf-8"))

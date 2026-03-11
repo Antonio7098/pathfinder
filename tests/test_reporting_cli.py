@@ -5,7 +5,7 @@ from pathlib import Path
 
 from pathfinder.cli import main
 from pathfinder.llm.models import LLMInvocationRecord, LLMProvider, StructuredPrompt, TokenUsage
-from pathfinder.reporting.enums import RecommendationPriority, RecommendationTemplateVersion
+from pathfinder.reporting.enums import GraphScope, RecommendationPriority, RecommendationTemplateVersion
 from pathfinder.reporting.input_models import PathEdgeInput, PathNodeInput, RecommendationReportInputArtifact, RecommendationReportInputSummary
 from pathfinder.reporting.models import RecommendationItem, RecommendationPathOverview, RecommendationReportArtifact, RecommendationReportDiagnostics, RecommendationReportSummary
 
@@ -27,6 +27,7 @@ def build_artifact(repo_path: Path) -> RecommendationReportArtifact:
         known_file_paths=["web/routes.py", "pkg/service.py", "pkg/db.py"],
         path_overview=RecommendationPathOverview(
             path_id="path-1",
+            graph_scope=GraphScope.FILE,
             ordered_node_ids=["web/routes.py", "pkg/service.py", "pkg/db.py"],
             ordered_edge_ids=["edge-1", "edge-2"],
             ordered_file_paths=["web/routes.py", "pkg/service.py", "pkg/db.py"],
@@ -87,6 +88,7 @@ def test_cli_generate_recommendation_report(monkeypatch, tmp_path: Path, capsys)
     input_artifact = RecommendationReportInputArtifact(
         input_artifact_id="input:path-1",
         repo_path=str(tmp_path),
+        graph_scope=GraphScope.FILE,
         path_id="path-1",
         path_nodes=[
             PathNodeInput(id="web/routes.py", path="web/routes.py", language="python"),

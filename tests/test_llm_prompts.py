@@ -9,7 +9,7 @@ from pathfinder.llm.prompts.base import build_structured_prompt
 from pathfinder.llm.prompts.recommendation_report import RecommendationReportPromptContext, RecommendationReportPromptRegistry
 from pathfinder.llm.prompts.service_grouping import ServiceGroupingPromptContext, ServiceGroupingPromptRegistry
 from pathfinder.reporting.context import ReportContextBundle, ReportContextSummary, ReportFileContext
-from pathfinder.reporting.enums import RecommendationTemplateVersion
+from pathfinder.reporting.enums import GraphScope, RecommendationTemplateVersion
 from pathfinder.reporting.input_models import PathEdgeInput, PathNodeInput, RecommendationReportInputArtifact, RecommendationReportInputSummary, ReportFileReference
 from pathfinder.services.graphcode_context import GraphcodeFileProfile, GraphcodeSymbolSummary, ServiceGroupingGraphcodeEvidence
 from pathfinder.services.enums import ServiceTemplateVersion
@@ -21,6 +21,7 @@ def build_input_artifact() -> RecommendationReportInputArtifact:
     return RecommendationReportInputArtifact(
         input_artifact_id="input:path-1",
         repo_path="/repo",
+        graph_scope=GraphScope.FILE,
         path_id="path-1",
         path_nodes=[
             PathNodeInput(id="web/routes.py", path="web/routes.py", language="python", role="entry"),
@@ -103,6 +104,7 @@ def test_recommendation_prompt_registry_renders_versioned_prompt() -> None:
     payload = json.loads(prompt.user_prompt)
     assert prompt.template_version == "recommendation-report-v1"
     assert prompt.prompt_version == "recommendation-report-prompt-v1"
+    assert payload["graph_scope"] == "file"
     assert payload["path_id"] == "path-1"
     assert payload["dropped_file_paths"] == ["pkg/audit.py"]
     assert payload["response_contract"]["top_priority_file_path"] == "must be one of known_file_paths"

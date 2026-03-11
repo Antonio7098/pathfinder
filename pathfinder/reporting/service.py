@@ -139,6 +139,7 @@ class RecommendationReportService:
             known_file_paths=known_file_paths,
             path_overview=RecommendationPathOverview(
                 path_id=input_artifact.path_id,
+                graph_scope=input_artifact.graph_scope,
                 ordered_node_ids=[node.id for node in input_artifact.path_nodes],
                 ordered_edge_ids=[edge.id for edge in input_artifact.path_edges],
                 ordered_file_paths=[node.path for node in input_artifact.path_nodes],
@@ -171,11 +172,17 @@ class RecommendationReportService:
     def _known_file_paths(self, input_artifact: RecommendationReportInputArtifact) -> list[str]:
         seen: set[str] = set()
         ordered_paths: list[str] = []
-        for path in [node.path for node in input_artifact.path_nodes] + [item.path for item in input_artifact.focal_files]:
-            if path in seen:
+        for node in input_artifact.path_nodes:
+            for path in node.backing_file_paths or [node.path]:
+                if path in seen:
+                    continue
+                seen.add(path)
+                ordered_paths.append(path)
+        for item in input_artifact.focal_files:
+            if item.path in seen:
                 continue
-            seen.add(path)
-            ordered_paths.append(path)
+            seen.add(item.path)
+            ordered_paths.append(item.path)
         return ordered_paths
 
     def _citation_count(self, recommendations: list[RecommendationItem]) -> int:

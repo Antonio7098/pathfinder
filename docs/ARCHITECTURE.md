@@ -44,6 +44,7 @@ Implemented now:
 * a deterministic service graph derivation step that aggregates file-level structural edges into service-to-service edges with provenance
 * a reusable `pathfinder.llm` layer for structured LLM calls through OpenRouter via the OpenAI SDK
 * a versioned recommendation report pipeline that consumes a selected path input artifact and repository file context
+* a deterministic recommendation-input builder that can project either file-graph paths or service-graph paths into that shared report-input artifact
 * structured LLM observability for prompt versioning, rendered prompts, model/provider metadata, token usage, and durations
 
 Not yet implemented:
@@ -422,6 +423,7 @@ The repository now includes this layer as a standalone post-path phase boundary:
 * `RecommendationReportInputArtifact` supplies ordered path nodes, ordered path edges, and focal files
 * `RecommendationReportArtifact` persists mitigation priorities, path narrative, citations, diagnostics, and LLM audit metadata
 * prompt/template versioning and rendered prompt bodies are recorded for observability
+* report inputs can now be built from either the canonical file graph or the derived service graph, while preserving backing file evidence for service-scope paths
 * the report layer is intentionally separate from the graph schema so structural, attack, search, and reporting artifacts stay distinct
 
 ---

@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from pathfinder.errors import ValidationError
 from pathfinder.llm.models import LLMInvocationRecord
-from pathfinder.reporting.enums import RecommendationPriority, RecommendationReportVersion, RecommendationTemplateVersion
+from pathfinder.reporting.enums import GraphScope, RecommendationPriority, RecommendationReportVersion, RecommendationTemplateVersion
 from pathfinder.structural.ids import normalize_repo_path
 
 
@@ -53,6 +53,7 @@ class RecommendationPathOverview(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     path_id: str
+    graph_scope: GraphScope = GraphScope.FILE
     ordered_node_ids: list[str]
     ordered_edge_ids: list[str]
     ordered_file_paths: list[str]

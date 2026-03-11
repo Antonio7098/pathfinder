@@ -3,6 +3,11 @@
 from enum import StrEnum
 
 
+class GraphScope(StrEnum):
+    FILE = "file"
+    SERVICE = "service"
+
+
 class RecommendationInputVersion(StrEnum):
     V1 = "recommendation-input-v1"
 

@@ -9,6 +9,8 @@ from pathlib import Path
 
 from pathfinder.errors import PathfinderError
 from pathfinder.observability.logging import configure_logging, get_logger
+from pathfinder.reporting.enums import GraphScope
+from pathfinder.reporting.input_builder import RecommendationInputBuildRequest, RecommendationInputBuilderService
 from pathfinder.reporting.service import RecommendationReportRequest, create_openrouter_recommendation_report_service
 from pathfinder.services.service import ServiceGraphRequest, ServiceGraphService, ServiceGroupingRequest, create_openrouter_service_grouping_service
 from pathfinder.structural.service import StructuralExtractionRequest, StructuralExtractionService
@@ -25,6 +27,18 @@ def build_parser() -> argparse.ArgumentParser:
     build.add_argument("--include-hidden", action="store_true", help="Include hidden files during extraction")
     build.add_argument("--strict-parse", action="store_true", help="Fail extraction on parse errors")
     build.add_argument("--verbose", action="store_true", help="Enable debug logging")
+
+    report_input = subparsers.add_parser("build-recommendation-input", help="Build a recommendation report input artifact from either a file graph path or a service graph path")
+    report_input.add_argument("--graph-scope", choices=[scope.value for scope in GraphScope], default=GraphScope.FILE.value, help="Graph scope to use when resolving path nodes")
+    report_input.add_argument("--structural-graph", type=Path, required=True, help="Structural graph artifact JSON")
+    report_input.add_argument("--service-graph", type=Path, default=None, help="Service graph artifact JSON, required for service scope")
+    report_input.add_argument("--grouping", type=Path, default=None, help="Service grouping artifact JSON, required for service scope")
+    report_input.add_argument("--path-node-id", action="append", dest="path_node_ids", required=True, help="Ordered path node id; repeat for each node in the path")
+    report_input.add_argument("--focal-file", action="append", dest="focal_file_paths", default=None, help="Extra grounded file to include in report context")
+    report_input.add_argument("--path-id", default="selected-path", help="Stable path identifier")
+    report_input.add_argument("--input-artifact-id", default=None, help="Optional explicit input artifact identifier")
+    report_input.add_argument("--output", type=Path, default=Path("recommendation_input.json"), help="Output path for recommendation input JSON")
+    report_input.add_argument("--verbose", action="store_true", help="Enable debug logging")
 
     report = subparsers.add_parser("generate-recommendation-report", help="Generate a grounded mitigation report from a selected path input artifact")
     report.add_argument("--input", type=Path, required=True, help="Recommendation report input artifact JSON")
@@ -71,6 +85,24 @@ def main(argv: list[str] | None = None) -> int:
                 continue_on_parse_error=not args.strict_parse,
             )
             result = service.run(request)
+            print(json.dumps(result.artifact.summary.model_dump(mode="json"), sort_keys=True))
+            return 0
+
+        if args.command == "build-recommendation-input":
+            service = RecommendationInputBuilderService(logger)
+            result = service.run(
+                RecommendationInputBuildRequest(
+                    graph_scope=GraphScope(args.graph_scope),
+                    structural_graph_path=args.structural_graph,
+                    service_graph_path=args.service_graph,
+                    grouping_path=args.grouping,
+                    path_node_ids=args.path_node_ids,
+                    focal_file_paths=args.focal_file_paths or [],
+                    path_id=args.path_id,
+                    input_artifact_id=args.input_artifact_id,
+                    output_path=args.output,
+                )
+            )
             print(json.dumps(result.artifact.summary.model_dump(mode="json"), sort_keys=True))
             return 0
 

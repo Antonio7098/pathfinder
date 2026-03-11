@@ -5,7 +5,7 @@ from __future__ import annotations
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from pathfinder.errors import ValidationError
-from pathfinder.reporting.enums import RecommendationInputVersion
+from pathfinder.reporting.enums import GraphScope, RecommendationInputVersion
 from pathfinder.structural.ids import normalize_repo_path
 
 
@@ -27,16 +27,23 @@ class PathNodeInput(BaseModel):
     id: str
     path: str
     language: str
+    display_name: str | None = None
     role: str | None = None
     target_flag: bool = False
     normalized_risk_score: float | None = None
     confidence: float | None = None
     rationale: str | None = None
+    backing_file_paths: list[str] = Field(default_factory=list)
 
     @field_validator("path")
     @classmethod
     def normalize_path(cls, value: str) -> str:
         return normalize_repo_path(value)
+
+    @field_validator("backing_file_paths")
+    @classmethod
+    def normalize_backing_file_paths(cls, values: list[str]) -> list[str]:
+        return [normalize_repo_path(value) for value in values]
 
 
 class PathEdgeInput(BaseModel):
@@ -67,6 +74,7 @@ class RecommendationReportInputArtifact(BaseModel):
     input_artifact_id: str
     version: RecommendationInputVersion = RecommendationInputVersion.V1
     repo_path: str
+    graph_scope: GraphScope = GraphScope.FILE
     graph_id: str | None = None
     path_id: str
     path_nodes: list[PathNodeInput]
@@ -114,6 +122,14 @@ class RecommendationReportInputArtifact(BaseModel):
                         "actual_target": edge.target,
                     },
                 )
+
+        if self.graph_scope == GraphScope.SERVICE:
+            for node in self.path_nodes:
+                if not node.backing_file_paths:
+                    raise ValidationError(
+                        "Service-scope recommendation input nodes must include backing_file_paths",
+                        context={"path_id": self.path_id, "node_id": node.id},
+                    )
 
         if self.summary.path_node_count != len(self.path_nodes):
             raise ValidationError(
