@@ -37,6 +37,17 @@ In the current repo, the implemented pieces are the structural graph layer, an o
 
 ## Main commands
 
+Run the full demo pipeline:
+
+```bash
+.venv/bin/python -m pathfinder.cli run-full-pipeline \
+  --repo tests/fixtures/demo_vuln_repo \
+  --output-dir demo-output \
+  --graph-mode service \
+  --provider minimax \
+  --timeout-seconds 600
+```
+
 Build a structural graph:
 
 * `python -m pathfinder.cli build-structural-graph --repo /path/to/repo --output structural_graph.json`
@@ -57,10 +68,6 @@ Build a deterministic service graph from structural graph + grouping artifacts:
 
 * `python -m pathfinder.cli build-service-graph --structural-graph structural_graph.json --grouping service_grouping.json --output service_graph.json`
 
-Run the full pipeline:
-
-* `python -m pathfinder.cli run-full-pipeline --repo /path/to/repo --output-dir pathfinder-output --graph-mode service`
-
 ## Demo fixture
 
 A small intentionally vulnerable demo repo is available at:
@@ -73,9 +80,16 @@ It is designed to produce a readable service graph with a few purposeful vulnera
 * IDOR and unsafe SQL construction in `billing/payments.py`
 * weak admin gate in `admin/export.py`
 
-Example:
+Recommended demo command:
 
-* `python -m pathfinder.cli run-full-pipeline --repo tests/fixtures/demo_vuln_repo --output-dir demo-output --graph-mode service`
+```bash
+.venv/bin/python -m pathfinder.cli run-full-pipeline \
+  --repo tests/fixtures/demo_vuln_repo \
+  --output-dir demo-output \
+  --graph-mode service \
+  --provider minimax \
+  --timeout-seconds 600
+```
 
 ## Output artifacts
 
