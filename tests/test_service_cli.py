@@ -132,6 +132,37 @@ def test_cli_identify_services(monkeypatch, tmp_path: Path, capsys) -> None:
     assert summary["service_count"] == 2
 
 
+def test_cli_identify_services_with_minimax_provider(monkeypatch, tmp_path: Path, capsys) -> None:
+    input_path = tmp_path / "structural_graph.json"
+    raw_codegraph_path = tmp_path / "raw_codegraph.json"
+    input_path.write_text("{}", encoding="utf-8")
+    raw_codegraph_path.write_text("{}", encoding="utf-8")
+
+    class FakeService:
+        def run(self, request):
+            assert request.input_path == input_path
+            assert request.raw_codegraph_input_path == raw_codegraph_path
+            return type("Result", (), {"artifact": build_grouping_artifact(tmp_path), "output_path": request.output_path, "duration_seconds": 0.1})()
+
+    monkeypatch.setattr("pathfinder.cli.create_minimax_service_grouping_service", lambda logger, model_override=None, timeout_seconds=60.0: FakeService())
+
+    exit_code = main([
+        "identify-services",
+        "--input",
+        str(input_path),
+        "--raw-codegraph",
+        str(raw_codegraph_path),
+        "--output",
+        str(tmp_path / "out.json"),
+        "--provider",
+        "minimax",
+    ])
+
+    assert exit_code == 0
+    summary = json.loads(capsys.readouterr().out.strip())
+    assert summary["service_count"] == 2
+
+
 def test_cli_build_service_graph(monkeypatch, tmp_path: Path, capsys) -> None:
     structural_graph_path = tmp_path / "structural_graph.json"
     grouping_path = tmp_path / "grouping.json"

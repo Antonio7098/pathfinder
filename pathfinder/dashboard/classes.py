@@ -1,23 +1,34 @@
-from random import randint, choice
-
 class node():
     language_converter = {
         'js' : 'javascript',
         'py' : 'python'
     }
-    def __init__(self, node_id, entry_point=False, end_point=False):
+    def __init__(
+        self,
+        node_id,
+        entry_point=False,
+        end_point=False,
+        normalised_risk_score=0.0,
+        confidence=0.0,
+        exploitability=0.0,
+        privelidge_gain=0.0,
+        data_access_value=0.0,
+        lateral_movement_value=0.0,
+        detection_risk=0.0,
+    ):
         self.node_type = 'file'
         self.node_id = node_id
-        self.language = self.language_converter[self.node_id.split('.')[1]]
+        extension = self.node_id.rsplit('.', 1)[-1] if '.' in self.node_id else ''
+        self.language = self.language_converter.get(extension, extension or 'unknown')
         self.entry_point = entry_point
         self.end_point = end_point
-        self.normalised_risk_score = (randint(0,100))/100
-        self.confidence = (randint(0,100))/100
-        self.exploitability = (randint(0,100))/100
-        self.privelidge_gain = (randint(0,100))/100
-        self.data_access_value = (randint(0,100))/100
-        self.lateral_movement_value = (randint(0,100))/100
-        self.detection_risk = (randint(0,100))/100
+        self.normalised_risk_score = normalised_risk_score
+        self.confidence = confidence
+        self.exploitability = exploitability
+        self.privelidge_gain = privelidge_gain
+        self.data_access_value = data_access_value
+        self.lateral_movement_value = lateral_movement_value
+        self.detection_risk = detection_risk
 
     def aggregate_score(self):
         if self.end_point:
@@ -32,36 +43,26 @@ class node():
         if self.entry_point:
             return self.exploitability * 3
         return self.lateral_movement_value
-
-
-
-
 class edge():
-    VULNERABILITIES = [
-        "sql_injection",
-        "command_injection",
-        "path_traversal",
-        "ssrf",
-        "prototype_pollution",
-        "insecure_deserialization",
-        "hardcoded_secret",
-        "auth_bypass",
-        "dependency_confusion",
-        "xxe"
-    ]
-
-    def __init__(self, source_node, target_node):
+    def __init__(
+        self,
+        source_node,
+        target_node,
+        vulnerability="default",
+        transition_likelihood=0.0,
+        detection_risk=0.0,
+        edge_attack_cost=0.0,
+    ):
         self.id = source_node + '>' + target_node
         self.type = 'attack'
 
         self.source_node = source_node
         self.target_node = target_node
 
-        self.vulnerability = choice(self.VULNERABILITIES)
-
-        self.transition_likelihood = randint(0,100)/100
-        self.detection_risk = randint(0,100)/100
-        self.edge_attack_cost = randint(0,100)/100
+        self.vulnerability = vulnerability
+        self.transition_likelihood = transition_likelihood
+        self.detection_risk = detection_risk
+        self.edge_attack_cost = edge_attack_cost
     
     def aggregate(self):
         return (self.transition_likelihood + self.detection_risk + self.edge_attack_cost)/3
@@ -80,11 +81,32 @@ class service_node():
         'py' : 'python'
     }
 
-    def __init__(self, node_id, name, kind, layer, summary, files, file_count, files_by_language, rationale, entry_point=False, end_point=False):
+    def __init__(
+        self,
+        node_id,
+        name,
+        kind,
+        layer,
+        summary,
+        files,
+        file_count,
+        files_by_language,
+        rationale,
+        entry_point=False,
+        end_point=False,
+        normalised_risk_score=0.0,
+        confidence=0.0,
+        exploitability=0.0,
+        privelidge_gain=0.0,
+        data_access_value=0.0,
+        lateral_movement_value=0.0,
+        detection_risk=0.0,
+    ):
         self.node_type = 'service'
         self.node_id = node_id
         self.name = name
-        self.language = self.language_converter[self.node_id.split('.')[1]]
+        dominant_language = sorted(files_by_language.items(), key=lambda item: (-item[1], item[0]))[0][0] if files_by_language else 'unknown'
+        self.language = self.language_converter.get(dominant_language, dominant_language)
         self.kind = kind
         self.layer = layer
         self.summary = summary
@@ -94,13 +116,13 @@ class service_node():
         self.rationale = rationale
         self.entry_point = entry_point
         self.end_point = end_point
-        self.normalised_risk_score = (randint(0,100))/100
-        self.confidence = (randint(0,100))/100
-        self.exploitability = (randint(0,100))/100
-        self.privelidge_gain = (randint(0,100))/100
-        self.data_access_value = (randint(0,100))/100
-        self.lateral_movement_value = (randint(0,100))/100
-        self.detection_risk = (randint(0,100))/100
+        self.normalised_risk_score = normalised_risk_score
+        self.confidence = confidence
+        self.exploitability = exploitability
+        self.privelidge_gain = privelidge_gain
+        self.data_access_value = data_access_value
+        self.lateral_movement_value = lateral_movement_value
+        self.detection_risk = detection_risk
 
     def aggregate_score(self):
         if self.end_point:

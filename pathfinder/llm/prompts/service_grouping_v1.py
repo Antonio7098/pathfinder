@@ -20,6 +20,9 @@ def render_service_grouping_v1(context) -> tuple[str, str]:
         "Group files into a grounded set of meaningful services and assign each service a layer label. "
         "Use the supplied graphcode evidence such as exported symbols, symbol interaction pairs, directory representative files, and grounded role hints when it helps identify real service boundaries. "
         "Prefer high coverage: minimize unclassified files when a coherent service, support subsystem, adapter layer, or test/fixture cluster is clearly grounded by the directory structure, symbol evidence, and structural edges. "
+        "If the repository has a dominant package root such as src/, app/, pkg/, or a named project package, strongly prefer treating its immediate child directories as candidate services before collapsing them into a generic cluster. "
+        "When a candidate service name clearly matches a directory bucket, such as dashboard, llm, reporting, structural, services, security_evaluators, adapters, or observability, include the grounded files from that matching bucket instead of leaving them for fallback clustering. "
+        "If you use repository vocabulary in CamelCase names like ReportingService or StructuralGraphService, you must still ground them with the exact file paths from the matching directory bucket. "
         "Choose concise, specific service names that stay close to the repository's own subsystem language; prefer directory or exported-symbol vocabulary over generic names like core, misc, or service layer when better grounded names exist. "
         "If you see a clear bootstrap, API surface, migration, test, prompt, adapter, or graph-pipeline cluster in the role hints, you may use that evidence to create a small grounded service instead of leaving the files for deterministic fallback. "
         "Keep the response compact: architecture_summary should be at most two short sentences, and each service summary and rationale should be at most one short sentence. "
@@ -97,6 +100,6 @@ def _directory_bucket(path: str) -> str:
 
 SERVICE_GROUPING_V1_TEMPLATE = VersionedPromptTemplate(
     template_version=ServiceTemplateVersion.V1.value,
-    prompt_version="service-grouping-prompt-v3",
+    prompt_version="service-grouping-prompt-v4",
     renderer=render_service_grouping_v1,
 )
