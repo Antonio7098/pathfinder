@@ -74,3 +74,44 @@ class edge():
     )
         
         
+class service_node():
+    language_converter = {
+        'js' : 'javascript',
+        'py' : 'python'
+    }
+
+    def __init__(self, node_id, name, kind, layer, summary, files, file_count, files_by_language, rationale, entry_point=False, end_point=False):
+        self.node_type = 'service'
+        self.node_id = node_id
+        self.name = name
+        self.language = self.language_converter[self.node_id.split('.')[1]]
+        self.kind = kind
+        self.layer = layer
+        self.summary = summary
+        self.files = files
+        self.file_count = file_count
+        self.files_by_language = files_by_language
+        self.rationale = rationale
+        self.entry_point = entry_point
+        self.end_point = end_point
+        self.normalised_risk_score = (randint(0,100))/100
+        self.confidence = (randint(0,100))/100
+        self.exploitability = (randint(0,100))/100
+        self.privelidge_gain = (randint(0,100))/100
+        self.data_access_value = (randint(0,100))/100
+        self.lateral_movement_value = (randint(0,100))/100
+        self.detection_risk = (randint(0,100))/100
+
+    def aggregate_score(self):
+        if self.end_point:
+            return self.data_access_value * 5 + self.privelidge_gain * 2
+        if self.entry_point:
+            return self.exploitability * 5 + self.detection_risk * 2
+        return 1
+    
+    def node_value(self):
+        if self.end_point:
+            return self.data_access_value * 5 + self.privelidge_gain * 2
+        if self.entry_point:
+            return self.exploitability * 3
+        return self.lateral_movement_value
