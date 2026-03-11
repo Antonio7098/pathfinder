@@ -6,9 +6,10 @@ Pathfinder is a file-first cybersecurity analysis system aimed at answering:
 
 ## What is implemented now
 
-This repository currently ships two main capabilities:
+This repository currently ships three main capabilities:
 
 * **structural graph extraction** from a repository into a deterministic file-level graph artifact
+* **service grouping + service graph derivation** as an optional overlay built from the structural graph
 * **recommendation reporting** that turns an already-selected path plus file context into a grounded mitigation report
 
 It also includes a reusable LLM layer for future Pathfinder phases.
@@ -32,7 +33,7 @@ Pathfinder keeps its layers separate:
 * deterministic path search
 * recommendation reporting
 
-In the current repo, the implemented pieces are the structural graph layer and the post-path reporting layer.
+In the current repo, the implemented pieces are the structural graph layer, an optional derived service overlay, and the post-path reporting layer.
 
 ## Main commands
 
@@ -47,6 +48,14 @@ Optionally also persist raw CodeGraph output:
 Generate a recommendation report from a path input artifact:
 
 * `python -m pathfinder.cli generate-recommendation-report --input recommendation_input.json --output recommendation_report.json`
+
+Infer services from a structural graph artifact:
+
+* `python -m pathfinder.cli identify-services --input structural_graph.json --output service_grouping.json`
+
+Build a deterministic service graph from structural graph + grouping artifacts:
+
+* `python -m pathfinder.cli build-service-graph --structural-graph structural_graph.json --grouping service_grouping.json --output service_graph.json`
 
 ## Output artifacts
 
@@ -76,6 +85,17 @@ and produces a versioned report artifact containing:
 * diagnostics
 * LLM invocation audit metadata
 
+### Service grouping and service graph overlay
+
+The service overlay adds two versioned artifacts:
+
+* `ServiceGroupingArtifact` — LLM-proposed service groups resolved into grounded file assignments
+* `ServiceGraphArtifact` — deterministic service-to-service edges aggregated from structural file edges
+
+These do **not** replace the canonical file-level structural graph.
+
+When the LLM leaves a large cohesive subtree uncovered, Pathfinder may create a deterministic residual cluster service so the overlay stays usable on real repositories without inventing structural connectivity.
+
 ## LLM usage
 
 The reporting subsystem uses OpenRouter through the OpenAI SDK behind a reusable interface.
@@ -96,6 +116,7 @@ Current observability includes:
 Important directories:
 
 * `pathfinder/structural/` — structural graph models, projection, I/O, service layer
+* `pathfinder/services/` — service grouping models, deterministic service graph derivation, I/O, service layer
 * `pathfinder/reporting/` — recommendation report models, I/O, and service layer
 * `pathfinder/llm/` — reusable LLM abstractions, centralized versioned prompts, and OpenRouter adapter
 * `pathfinder/observability/` — structured logging helpers
@@ -107,10 +128,11 @@ Important directories:
 * `docs/ARCHITECTURE.md` — architecture and phase boundaries
 * `docs/GRAPH_SCHEMA.md` — structural graph schema guidance
 * `docs/STRUCTURAL_GRAPH_EXTRACTION.md` — structural extraction implementation details
+* `docs/SERVICE_GROUPING.md` — service grouping overlay artifacts, CLI usage, and derivation rules
 * `docs/RECOMMENDATION_REPORTING.md` — report input/output artifacts, prompts, observability, CLI usage
 * `docs/ENGINEERING_CONVENTIONS.md` — logging, errors, typing, and validation rules
 * `docs/PRD.md` — product framing and roadmap
 
 ## Current one-line summary
 
-Today, Pathfinder can build a structural file graph and generate a grounded mitigation report once an upstream step has already selected the path to analyze.
+Today, Pathfinder can build a structural file graph, derive an optional service overlay from it, and generate a grounded mitigation report once an upstream step has already selected the path to analyze.

@@ -39,6 +39,13 @@ Separately, the repository now implements a **post-search recommendation reporti
 
 Those artifacts consume selected paths and file context after search; they do not redefine graph nodes or edges.
 
+The repository also implements a **derived service overlay boundary** that remains separate from the canonical file-level graph schema:
+
+* `ServiceGroupingArtifact`
+* `ServiceGraphArtifact`
+
+These artifacts project services from the file graph for higher-level reasoning, but they do not replace file nodes as the MVP's canonical structural/search nodes.
+
 ---
 
 ## Recommended Graph Model

@@ -68,6 +68,9 @@ Prefer logs that describe a meaningful lifecycle event, for example:
 * `llm.request.started`
 * `llm.request.prompt`
 * `llm.request.completed`
+* `service_grouping.started`
+* `service_grouping.completed`
+* `service_graph.completed`
 * `recommendation_report.completed`
 
 Guidelines:
@@ -214,6 +217,7 @@ Examples:
 
 * raw CodeGraph document models in `pathfinder/adapters/codegraph_models.py`
 * structural graph artifact models in `pathfinder/structural/models.py`
+* service grouping and service graph models in `pathfinder/services/models.py`
 * recommendation report input/output models in `pathfinder/reporting/input_models.py` and `pathfinder/reporting/models.py`
 * reusable LLM boundary models in `pathfinder/llm/models.py`
 

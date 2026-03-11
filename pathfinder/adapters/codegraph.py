@@ -104,3 +104,10 @@ class CodeGraphAdapter:
         except Exception as exc:
             raise PersistenceError("Failed to persist raw CodeGraph artifact", context={"output_path": str(output_path), "cause": str(exc)}) from exc
         log_event(self._logger, "codegraph.persisted", fields={"output_path": str(output_path)})
+
+
+def read_raw_codegraph_document(input_path: Path) -> CodeGraphDocument:
+    try:
+        return CodeGraphDocument.model_validate_json(input_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise PersistenceError("Failed to read raw CodeGraph artifact", context={"input_path": str(input_path), "cause": str(exc)}) from exc
