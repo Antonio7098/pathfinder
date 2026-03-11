@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import json
 
+from pathfinder.llm.prompt_injection import scan_prompt_injection_signals, wrap_untrusted_repository_text
 from pathfinder.llm.prompts.base import VersionedPromptTemplate
 
 
 def render_file_security_evaluation_v1(context) -> tuple[str, str]:
+    signal_scan = scan_prompt_injection_signals(context.code)
     system_prompt = (
         "You are Pathfinder's file security evaluation engine. "
         "Stay grounded in the supplied file only. "
@@ -19,7 +21,12 @@ def render_file_security_evaluation_v1(context) -> tuple[str, str]:
     )
     payload = {
         "file_path": context.file_path,
-        "code": context.code,
+        "code": wrap_untrusted_repository_text(
+            context.code,
+            source_label=context.file_path,
+            signal_scan=signal_scan,
+        ),
+        "prompt_injection_signals": list(signal_scan.matched_signals),
         "response_contract": {
             "tags": "short optional labels relevant to the file",
             "confidence": "float 0.0-1.0 for confidence in the assessment",
@@ -38,6 +45,8 @@ def render_file_security_evaluation_v1(context) -> tuple[str, str]:
 
 
 def render_edge_security_evaluation_v1(context) -> tuple[str, str]:
+    source_scan = scan_prompt_injection_signals(context.source_code)
+    target_scan = scan_prompt_injection_signals(context.target_code)
     system_prompt = (
         "You are Pathfinder's attack-transition derivation engine. "
         "You may only derive plausible attack transitions from the supplied structural edge. "
@@ -52,8 +61,24 @@ def render_edge_security_evaluation_v1(context) -> tuple[str, str]:
     payload = {
         "structural_edge_id": context.structural_edge_id,
         "relationship_type": context.relationship_type,
-        "source_file": {"path": context.source_path, "code": context.source_code},
-        "target_file": {"path": context.target_path, "code": context.target_code},
+        "source_file": {
+            "path": context.source_path,
+            "code": wrap_untrusted_repository_text(
+                context.source_code,
+                source_label=context.source_path,
+                signal_scan=source_scan,
+            ),
+            "prompt_injection_signals": list(source_scan.matched_signals),
+        },
+        "target_file": {
+            "path": context.target_path,
+            "code": wrap_untrusted_repository_text(
+                context.target_code,
+                source_label=context.target_path,
+                signal_scan=target_scan,
+            ),
+            "prompt_injection_signals": list(target_scan.matched_signals),
+        },
         "valid_attack_types": list(context.valid_attack_types),
         "response_contract": {
             "attacks": [
@@ -74,12 +99,12 @@ def render_edge_security_evaluation_v1(context) -> tuple[str, str]:
 
 FILE_SECURITY_EVALUATION_V1_TEMPLATE = VersionedPromptTemplate(
     template_version="security-evaluation-v1",
-    prompt_version="file-security-evaluation-prompt-v2",
+    prompt_version="file-security-evaluation-prompt-v3",
     renderer=render_file_security_evaluation_v1,
 )
 
 EDGE_SECURITY_EVALUATION_V1_TEMPLATE = VersionedPromptTemplate(
     template_version="security-evaluation-v1",
-    prompt_version="edge-security-evaluation-prompt-v2",
+    prompt_version="edge-security-evaluation-prompt-v3",
     renderer=render_edge_security_evaluation_v1,
 )

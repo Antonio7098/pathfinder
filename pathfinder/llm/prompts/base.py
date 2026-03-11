@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Callable, Generic, Mapping, TypeVar
 
 from pathfinder.errors import ConfigurationError
+from pathfinder.llm.prompt_injection import apply_prompt_injection_guardrails
 from pathfinder.llm.models import StructuredPrompt
 
 
@@ -45,7 +46,7 @@ class VersionedPromptTemplate(Generic[RenderContextT]):
         return build_structured_prompt(
             template_version=self.template_version,
             prompt_version=self.prompt_version,
-            system_prompt=system_prompt,
+            system_prompt=apply_prompt_injection_guardrails(system_prompt),
             user_prompt=user_prompt,
         )
 

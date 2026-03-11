@@ -100,6 +100,6 @@ def _directory_bucket(path: str) -> str:
 
 SERVICE_GROUPING_V1_TEMPLATE = VersionedPromptTemplate(
     template_version=ServiceTemplateVersion.V1.value,
-    prompt_version="service-grouping-prompt-v4",
+    prompt_version="service-grouping-prompt-v5",
     renderer=render_service_grouping_v1,
 )

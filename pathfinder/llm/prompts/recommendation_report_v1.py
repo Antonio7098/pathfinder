@@ -65,6 +65,6 @@ def render_recommendation_report_v1(context) -> tuple[str, str]:
 
 RECOMMENDATION_REPORT_V1_TEMPLATE = VersionedPromptTemplate(
     template_version=RecommendationTemplateVersion.V1.value,
-    prompt_version="recommendation-report-prompt-v1",
+    prompt_version="recommendation-report-prompt-v2",
     renderer=render_recommendation_report_v1,
 )

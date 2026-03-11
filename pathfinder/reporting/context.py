@@ -6,6 +6,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from pathfinder.llm.prompt_injection import scan_prompt_injection_signals, wrap_untrusted_repository_text
 from pathfinder.observability.logging import log_event
 from pathfinder.reporting.input_models import RecommendationReportInputArtifact
 
@@ -19,6 +20,8 @@ class ReportFileContext(BaseModel):
     truncated: bool = False
     original_char_count: int = 0
     included_char_count: int = 0
+    prompt_injection_signal_count: int = 0
+    prompt_injection_signals: list[str] = Field(default_factory=list)
 
 
 class ReportContextSummary(BaseModel):
@@ -31,6 +34,8 @@ class ReportContextSummary(BaseModel):
     truncated_file_count: int
     dropped_file_count: int
     total_prompt_chars: int
+    suspicious_file_count: int = 0
+    prompt_injection_signal_count: int = 0
 
 
 class ReportContextBundle(BaseModel):
@@ -40,6 +45,7 @@ class ReportContextBundle(BaseModel):
     missing_file_paths: list[str] = Field(default_factory=list)
     truncated_file_paths: list[str] = Field(default_factory=list)
     dropped_file_paths: list[str] = Field(default_factory=list)
+    suspicious_file_paths: list[str] = Field(default_factory=list)
     summary: ReportContextSummary
 
 
@@ -63,7 +69,9 @@ class ReportContextBuilder:
         files: list[ReportFileContext] = []
         missing_file_paths: list[str] = []
         truncated_file_paths: list[str] = []
+        suspicious_file_paths: list[str] = []
         total_prompt_chars = 0
+        prompt_injection_signal_count = 0
         repo_path = Path(input_artifact.repo_path)
 
         for relative_path in included_paths:
@@ -73,10 +81,18 @@ class ReportContextBuilder:
                 files.append(ReportFileContext(path=relative_path, content="", missing=True))
                 continue
             raw_content = absolute_path.read_text(encoding="utf-8", errors="replace")
+            signal_scan = scan_prompt_injection_signals(raw_content)
             truncated = len(raw_content) > max_file_chars
-            rendered_content = raw_content[:max_file_chars]
+            rendered_content = wrap_untrusted_repository_text(
+                raw_content[:max_file_chars],
+                source_label=relative_path,
+                signal_scan=signal_scan,
+            )
             if truncated:
                 truncated_file_paths.append(relative_path)
+            if signal_scan.signal_count > 0:
+                suspicious_file_paths.append(relative_path)
+                prompt_injection_signal_count += signal_scan.signal_count
             total_prompt_chars += len(rendered_content)
             files.append(
                 ReportFileContext(
@@ -84,7 +100,9 @@ class ReportContextBuilder:
                     content=rendered_content,
                     truncated=truncated,
                     original_char_count=len(raw_content),
-                    included_char_count=len(rendered_content),
+                    included_char_count=len(raw_content[:max_file_chars]),
+                    prompt_injection_signal_count=signal_scan.signal_count,
+                    prompt_injection_signals=list(signal_scan.matched_signals),
                 )
             )
 
@@ -93,6 +111,7 @@ class ReportContextBuilder:
             missing_file_paths=missing_file_paths,
             truncated_file_paths=truncated_file_paths,
             dropped_file_paths=dropped_paths,
+            suspicious_file_paths=suspicious_file_paths,
             summary=ReportContextSummary(
                 requested_file_count=len(requested_paths),
                 included_file_count=len(included_paths),
@@ -101,6 +120,8 @@ class ReportContextBuilder:
                 truncated_file_count=len(truncated_file_paths),
                 dropped_file_count=len(dropped_paths),
                 total_prompt_chars=total_prompt_chars,
+                suspicious_file_count=len(suspicious_file_paths),
+                prompt_injection_signal_count=prompt_injection_signal_count,
             ),
         )
         log_event(
@@ -114,6 +135,8 @@ class ReportContextBuilder:
                 "missing_file_count": bundle.summary.missing_file_count,
                 "truncated_file_count": bundle.summary.truncated_file_count,
                 "dropped_file_count": bundle.summary.dropped_file_count,
+                "suspicious_file_count": bundle.summary.suspicious_file_count,
+                "prompt_injection_signal_count": bundle.summary.prompt_injection_signal_count,
                 "total_prompt_chars": bundle.summary.total_prompt_chars,
             },
         )

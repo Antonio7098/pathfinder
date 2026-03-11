@@ -8,6 +8,7 @@ import json
 import sys
 from pathlib import Path
 
+from pathfinder.evaluation import PricingConfig, SecurityEvaluationRequest, SecurityEvaluationService
 from pathfinder.errors import PathfinderError
 from pathfinder.observability.logging import configure_logging, get_logger
 from pathfinder.pipeline import FullPipelineRequest, FullPipelineService
@@ -79,6 +80,20 @@ def build_parser() -> argparse.ArgumentParser:
     full_pipeline.add_argument("--max-file-chars", type=int, default=4000, help="Maximum characters to include per file in recommendation prompt context")
     full_pipeline.add_argument("--max-output-tokens", type=int, default=8192, help="Maximum completion tokens for LLM-backed stages")
     full_pipeline.add_argument("--verbose", action="store_true", help="Enable debug logging")
+
+    security_eval = subparsers.add_parser("run-security-eval", help="Evaluate file-risk classification and attack-edge derivation against a manual golden dataset")
+    security_eval.add_argument("--dataset", type=Path, required=True, help="Manual golden dataset JSON")
+    security_eval.add_argument("--output", type=Path, default=Path("security_evaluation_run.json"), help="Output path for evaluation run JSON")
+    security_eval.add_argument("--csv-output", type=Path, default=None, help="Optional output path for flattened evaluation CSV; defaults to the JSON output path with a .csv suffix")
+    security_eval.add_argument("--repo", type=Path, default=None, help="Optional repository path override; defaults to dataset repo_path")
+    security_eval.add_argument("--provider", choices=("openrouter", "minimax"), default="openrouter", help="LLM provider for evaluation")
+    security_eval.add_argument("--model", default=None, help="Optional model override")
+    security_eval.add_argument("--risk-threshold", type=float, default=0.5, help="Threshold for binary high-risk metrics")
+    security_eval.add_argument("--timeout-seconds", type=float, default=60.0, help="Per-request LLM timeout in seconds")
+    security_eval.add_argument("--max-output-tokens", type=int, default=None, help="Maximum completion tokens for evaluation requests")
+    security_eval.add_argument("--input-token-price-per-1m-usd", type=float, default=None, help="Optional estimated input token price in USD per 1M tokens")
+    security_eval.add_argument("--output-token-price-per-1m-usd", type=float, default=None, help="Optional estimated output token price in USD per 1M tokens")
+    security_eval.add_argument("--verbose", action="store_true", help="Enable debug logging")
     return parser
 
 
@@ -196,6 +211,48 @@ def main(argv: list[str] | None = None) -> int:
                         "selected_path_input_path": str(result.selected_path_input_path),
                         "recommendation_report_path": str(result.recommendation_report_path),
                         "dashboard_path": str(result.dashboard_path),
+                    },
+                    sort_keys=True,
+                )
+            )
+            return 0
+
+        if args.command == "run-security-eval":
+            pricing = None
+            if args.input_token_price_per_1m_usd is not None or args.output_token_price_per_1m_usd is not None:
+                pricing = PricingConfig(
+                    input_token_price_per_1m_usd=args.input_token_price_per_1m_usd,
+                    output_token_price_per_1m_usd=args.output_token_price_per_1m_usd,
+                )
+            service = SecurityEvaluationService(logger)
+            result = service.run(
+                SecurityEvaluationRequest(
+                    dataset_path=args.dataset,
+                    output_path=args.output,
+                    csv_output_path=args.csv_output,
+                    repo_path=args.repo,
+                    provider=args.provider,
+                    model=args.model,
+                    risk_threshold=args.risk_threshold,
+                    timeout_seconds=args.timeout_seconds,
+                    max_output_tokens=args.max_output_tokens,
+                    pricing=pricing,
+                )
+            )
+            print(
+                json.dumps(
+                    {
+                        "run_id": result.artifact.run_id,
+                        "dataset_id": result.artifact.dataset_id,
+                        "provider": result.artifact.provider.value,
+                        "model": result.artifact.model,
+                        "model_profile": result.artifact.model_profile.model_dump(mode="json") if result.artifact.model_profile is not None else None,
+                        "pricing": result.artifact.pricing.model_dump(mode="json") if result.artifact.pricing is not None else None,
+                        "output_path": str(result.output_path),
+                        "csv_output_path": str(result.csv_output_path),
+                        "runtime": result.artifact.summary.runtime.model_dump(mode="json"),
+                        "file_risk": result.artifact.summary.file_risk.model_dump(mode="json"),
+                        "attack_edges": result.artifact.summary.attack_edges.model_dump(mode="json"),
                     },
                     sort_keys=True,
                 )
