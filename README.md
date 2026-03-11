@@ -120,7 +120,7 @@ Important directories:
 * `pathfinder/reporting/` — recommendation report models, I/O, and service layer
 * `pathfinder/llm/` — reusable LLM abstractions, centralized versioned prompts, and OpenRouter adapter
 * `pathfinder/observability/` — structured logging helpers
-* `pathfinder/dashboard` - attack graph construction and visualisation
+* `pathfinder/dashboard/` - attack graph construction and visualisation
 * `tests/` — fixtures and automated tests
 * `docs/` — product, architecture, schema, and implementation docs
 
