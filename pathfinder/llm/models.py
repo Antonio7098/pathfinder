@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class LLMProvider(StrEnum):
     OPENROUTER = "openrouter"
+    MINIMAX = "minimax"
 
 
 class StructuredPrompt(BaseModel):

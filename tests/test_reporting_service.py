@@ -82,6 +82,19 @@ class FakeLLMClient:
         return StructuredLLMResult(parsed_output=self.payload, invocation=build_invocation())
 
 
+class FailingMiniMaxClient:
+    class _Config:
+        base_url = "https://api.minimax.io/v1/text/chatcompletion_v2"
+
+    _config = _Config()
+
+    def generate(self, request, *, response_model):
+        raise ValidationError(
+            "Structured LLM response did not contain content",
+            context={"provider_request_id": "minimax-empty"},
+        )
+
+
 def test_context_builder_tracks_truncation_and_dropped_files(tmp_path: Path) -> None:
     repo_path = tmp_path / "repo"
     shutil.copytree(FIXTURES / "python_repo", repo_path)
@@ -200,3 +213,37 @@ def test_recommendation_service_rejects_unknown_citations(tmp_path: Path) -> Non
 
     with pytest.raises(ValidationError):
         service.run(RecommendationReportRequest(input_path=input_path, output_path=tmp_path / "out.json"))
+
+
+def test_recommendation_service_falls_back_for_minimax_empty_response(tmp_path: Path) -> None:
+    repo_path = tmp_path / "repo"
+    shutil.copytree(FIXTURES / "python_repo", repo_path)
+    (repo_path / "pkg" / "audit.py").write_text("print('audit')\n", encoding="utf-8")
+    input_artifact = build_input_artifact(repo_path)
+    input_path = tmp_path / "recommendation_input.json"
+    input_path.write_text(json.dumps(input_artifact.model_dump(mode="json"), indent=2, sort_keys=True), encoding="utf-8")
+    output_path = tmp_path / "recommendation_report.json"
+
+    service = RecommendationReportService(
+        get_logger("reporting-test"),
+        llm_client=FailingMiniMaxClient(),
+        model="MiniMax-M2.5",
+        provider=LLMProvider.MINIMAX,
+    )
+
+    result = service.run(
+        RecommendationReportRequest(
+            input_path=input_path,
+            output_path=output_path,
+            max_files=4,
+            max_file_chars=20,
+        )
+    )
+
+    artifact = read_recommendation_report(output_path)
+    assert result.output_path.exists()
+    assert artifact.llm_invocation.provider == LLMProvider.MINIMAX
+    assert artifact.llm_invocation.finish_reason == "fallback"
+    assert artifact.llm_invocation.provider_request_id == "minimax-empty"
+    assert artifact.summary.recommendation_count >= 1
+    assert artifact.path_overview.top_priority_file_path in artifact.known_file_paths

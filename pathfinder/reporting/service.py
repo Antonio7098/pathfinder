@@ -8,12 +8,13 @@ from time import perf_counter
 
 from pydantic import BaseModel, ConfigDict
 
-from pathfinder.llm import LLMProvider, OpenAIStructuredLLMClient, OpenRouterSettings, StructuredLLMRequest
-from pathfinder.llm.models import LLMInvocationRecord
+from pathfinder.errors import ExternalDependencyError, ValidationError
+from pathfinder.llm import LLMProvider, MiniMaxSettings, MiniMaxStructuredLLMClient, OpenAIStructuredLLMClient, OpenRouterSettings, StructuredLLMRequest
+from pathfinder.llm.models import LLMInvocationRecord, TokenUsage
 from pathfinder.llm.prompts.recommendation_report import RecommendationReportPromptContext, RecommendationReportPromptRegistry
 from pathfinder.observability.logging import log_event
 from pathfinder.reporting.context import ReportContextBuilder, ReportContextBundle
-from pathfinder.reporting.enums import RecommendationTemplateVersion
+from pathfinder.reporting.enums import RecommendationPriority, RecommendationTemplateVersion
 from pathfinder.reporting.input_models import RecommendationReportInputArtifact
 from pathfinder.reporting.io import read_recommendation_report_input, write_recommendation_report
 from pathfinder.reporting.models import LLMRecommendationItem, LLMRecommendationReportPayload, RecommendationItem, RecommendationPathOverview, RecommendationReportArtifact, RecommendationReportDiagnostics, RecommendationReportSummary
@@ -44,12 +45,14 @@ class RecommendationReportService:
         *,
         llm_client,
         model: str,
+        provider: LLMProvider = LLMProvider.OPENROUTER,
         context_builder: ReportContextBuilder | None = None,
         prompt_registry: RecommendationReportPromptRegistry | None = None,
     ) -> None:
         self._logger = logger
         self._llm_client = llm_client
         self._model = model
+        self._provider = provider
         self._context_builder = context_builder or ReportContextBuilder(logger)
         self._prompt_registry = prompt_registry or RecommendationReportPromptRegistry()
 
@@ -80,27 +83,45 @@ class RecommendationReportService:
                 context_bundle=context_bundle,
             )
         )
-        llm_result = self._llm_client.generate(
-            StructuredLLMRequest(
-                provider=LLMProvider.OPENROUTER,
-                model=self._model,
-                operation_name="recommendation_report.generate",
-                response_format_name=self._prompt_registry.response_model().__name__,
-                prompt=prompt,
-                timeout_seconds=request.timeout_seconds,
-                metadata={
-                    "path_id": input_artifact.path_id,
-                    "template_version": request.template_version.value,
-                },
-            ),
-            response_model=self._prompt_registry.response_model(),
+        llm_request = StructuredLLMRequest(
+            provider=self._provider,
+            model=self._model,
+            operation_name="recommendation_report.generate",
+            response_format_name=self._prompt_registry.response_model().__name__,
+            prompt=prompt,
+            timeout_seconds=request.timeout_seconds,
+            metadata={
+                "path_id": input_artifact.path_id,
+                "template_version": request.template_version.value,
+            },
         )
+        try:
+            llm_result = self._llm_client.generate(
+                llm_request,
+                response_model=self._prompt_registry.response_model(),
+            )
+            llm_payload = llm_result.parsed_output
+            llm_invocation = llm_result.invocation
+        except (ValidationError, ExternalDependencyError) as exc:
+            if self._provider is not LLMProvider.MINIMAX:
+                raise
+            log_event(
+                self._logger,
+                "recommendation_report.fallback",
+                fields={
+                    "provider": self._provider.value,
+                    "path_id": input_artifact.path_id,
+                    "cause": str(exc),
+                },
+            )
+            llm_payload = self._fallback_payload(input_artifact=input_artifact)
+            llm_invocation = self._fallback_invocation(llm_request=llm_request, cause=exc)
         artifact = self._build_artifact(
             input_artifact=input_artifact,
             template_version=request.template_version,
             context_bundle=context_bundle,
-            llm_payload=llm_result.parsed_output,
-            llm_invocation=llm_result.invocation,
+            llm_payload=llm_payload,
+            llm_invocation=llm_invocation,
         )
         write_recommendation_report(artifact, request.output_path)
         duration = perf_counter() - started
@@ -198,6 +219,101 @@ class RecommendationReportService:
             confidence=item.confidence,
         )
 
+    def _fallback_payload(self, *, input_artifact: RecommendationReportInputArtifact) -> LLMRecommendationReportPayload:
+        path_nodes = input_artifact.path_nodes
+        path_edges = input_artifact.path_edges
+        top_priority_node = max(
+            path_nodes,
+            key=lambda node: (
+                node.target_flag,
+                node.normalized_risk_score if node.normalized_risk_score is not None else -1.0,
+                node.confidence if node.confidence is not None else -1.0,
+            ),
+        )
+        recommendations: list[LLMRecommendationItem] = []
+        path_length = len(path_nodes)
+        for index, node in enumerate(path_nodes[:3]):
+            role = node.role or ("target" if node.target_flag else "transition")
+            edge_ids: list[str] = []
+            node_ids = [node.id]
+            supporting_paths = [candidate.path for candidate in path_nodes if candidate.path != node.path][:2]
+            if index > 0:
+                prior_edge = path_edges[index - 1]
+                edge_ids.append(prior_edge.id)
+                node_ids.insert(0, prior_edge.source)
+            if index < len(path_edges):
+                next_edge = path_edges[index]
+                edge_ids.append(next_edge.id)
+                if next_edge.target not in node_ids:
+                    node_ids.append(next_edge.target)
+            recommendations.append(
+                LLMRecommendationItem(
+                    priority=self._fallback_priority(index=index, path_length=path_length, target_flag=node.target_flag),
+                    title=f"Review controls around {node.path}",
+                    summary=(
+                        f"Prioritize code review and hardening for the {role} file on the selected path. "
+                        "This fallback recommendation was generated deterministically because the provider response was unavailable."
+                    ),
+                    mitigation_steps=[
+                        f"Audit trust boundaries and input handling in {node.path}.",
+                        f"Add focused tests that exercise attacker-controlled flows reaching {node.path}.",
+                    ],
+                    primary_file_path=node.path,
+                    supporting_file_paths=supporting_paths,
+                    supporting_node_ids=node_ids,
+                    supporting_edge_ids=edge_ids,
+                    confidence=0.0,
+                )
+            )
+        return LLMRecommendationReportPayload(
+            path_narrative=(
+                f"The selected path traverses {len(path_nodes)} files and {len(path_edges)} grounded attack edges. "
+                "This narrative was generated deterministically because the provider response was unavailable."
+            ),
+            target_rationale=(
+                f"{path_nodes[-1].path} is the terminal file on the selected path"
+                + (" and is marked as a target." if path_nodes[-1].target_flag else ".")
+            ),
+            top_priority_file_path=top_priority_node.path,
+            top_priority_rationale=(
+                f"{top_priority_node.path} was selected as the top priority because it is the highest-risk grounded file on the chosen path."
+            ),
+            recommendations=recommendations,
+        )
+
+    def _fallback_priority(self, *, index: int, path_length: int, target_flag: bool) -> RecommendationPriority:
+        if target_flag:
+            return RecommendationPriority.CRITICAL
+        if index == 0:
+            return RecommendationPriority.HIGH
+        if index + 1 == path_length:
+            return RecommendationPriority.HIGH
+        return RecommendationPriority.MEDIUM
+
+    def _fallback_invocation(self, *, llm_request: StructuredLLMRequest, cause: Exception) -> LLMInvocationRecord:
+        provider_request_id = None
+        if isinstance(cause, (ValidationError, ExternalDependencyError)):
+            provider_request_id = str(cause.context.get("provider_request_id")) if cause.context.get("provider_request_id") is not None else None
+        return LLMInvocationRecord(
+            provider=llm_request.provider,
+            base_url=self._llm_client._config.base_url,
+            model=llm_request.model,
+            operation_name=llm_request.operation_name,
+            response_format_name=llm_request.response_format_name,
+            template_version=llm_request.prompt.template_version,
+            prompt_version=llm_request.prompt.prompt_version,
+            system_prompt=llm_request.prompt.system_prompt,
+            user_prompt=llm_request.prompt.user_prompt,
+            system_prompt_sha256=llm_request.prompt.system_prompt_sha256,
+            user_prompt_sha256=llm_request.prompt.user_prompt_sha256,
+            system_prompt_chars=len(llm_request.prompt.system_prompt),
+            user_prompt_chars=len(llm_request.prompt.user_prompt),
+            provider_request_id=provider_request_id,
+            finish_reason="fallback",
+            usage=TokenUsage(),
+            duration_seconds=0.0,
+        )
+
 
 def create_openrouter_recommendation_report_service(
     logger,
@@ -207,4 +323,15 @@ def create_openrouter_recommendation_report_service(
 ) -> RecommendationReportService:
     settings = OpenRouterSettings.from_env(model_override=model_override, timeout_seconds=timeout_seconds)
     llm_client = OpenAIStructuredLLMClient(logger, settings)
-    return RecommendationReportService(logger, llm_client=llm_client, model=settings.model)
+    return RecommendationReportService(logger, llm_client=llm_client, model=settings.model, provider=LLMProvider.OPENROUTER)
+
+
+def create_minimax_recommendation_report_service(
+    logger,
+    *,
+    model_override: str | None = None,
+    timeout_seconds: float = 60.0,
+) -> RecommendationReportService:
+    settings = MiniMaxSettings.from_env(model_override=model_override, timeout_seconds=timeout_seconds)
+    llm_client = MiniMaxStructuredLLMClient(logger, settings)
+    return RecommendationReportService(logger, llm_client=llm_client, model=settings.model, provider=LLMProvider.MINIMAX)

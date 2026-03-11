@@ -1,6 +1,6 @@
 import networkx as nx
 from pyvis.network import Network
-from classes import service_node, edge
+from .classes import service_node, edge
 
 
 class ServiceAttackGraph:
@@ -24,11 +24,11 @@ class ServiceAttackGraph:
     # Node / Edge creation
     # -------------------------
 
-    def add_node(self, node_id, name ,kind, layer, summary, files, file_count, files_by_language, rationale, entry=False, end=False):
-        self.nodes[node_id] = service_node(node_id, name, kind, layer, summary, files, file_count, files_by_language, rationale, entry_point=entry, end_point=end)
+    def add_node(self, node_id, name ,kind, layer, summary, files, file_count, files_by_language, rationale, entry=False, end=False, **metrics):
+        self.nodes[node_id] = service_node(node_id, name, kind, layer, summary, files, file_count, files_by_language, rationale, entry_point=entry, end_point=end, **metrics)
 
-    def add_edge(self, source, target):
-        self.edges.append(edge(source, target))
+    def add_edge(self, source, target, **metrics):
+        self.edges.append(edge(source, target, **metrics))
 
     def load_nodes(self, files):
 
@@ -261,7 +261,7 @@ class ServiceAttackGraph:
     # Export
     # -------------------------
 
-    def export_html(self, filename="service_dashboard.html"):
+    def export_html(self, filename="service_dashboard.html", report_html=""):
 
         net = self.build_network()
 
@@ -275,9 +275,13 @@ class ServiceAttackGraph:
             for i, s in enumerate(self.explain_path())
         )
 
-        mitigation_html = "".join(
-            f"<li><b>{u} → {v}</b>: {fix}</li>"
-            for u, v, fix in self.mitigation_steps()
+        report_panel_html = report_html or (
+            "<ul>"
+            + "".join(
+                f"<li><b>{u} → {v}</b>: {fix}</li>"
+                for u, v, fix in self.mitigation_steps()
+            )
+            + "</ul>"
         )
 
         dashboard = f"""
@@ -285,7 +289,7 @@ class ServiceAttackGraph:
 
 <head>
 
-<title>Attack Graph Dashboard</title>
+<title>Pathfinder Attack Path Dashboard</title>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/vis-network.min.js"></script>
 
@@ -370,10 +374,8 @@ box-shadow:0 2px 6px rgba(0,0,0,0.1);
 </div>
 
 <div class="panel">
-<h2>Mitigation Guidance</h2>
-<ul>
-{mitigation_html}
-</ul>
+<h2>Recommendation Report</h2>
+{report_panel_html}
 </div>
 
 </div>

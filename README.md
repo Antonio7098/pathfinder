@@ -57,6 +57,26 @@ Build a deterministic service graph from structural graph + grouping artifacts:
 
 * `python -m pathfinder.cli build-service-graph --structural-graph structural_graph.json --grouping service_grouping.json --output service_graph.json`
 
+Run the full pipeline:
+
+* `python -m pathfinder.cli run-full-pipeline --repo /path/to/repo --output-dir pathfinder-output --graph-mode service`
+
+## Demo fixture
+
+A small intentionally vulnerable demo repo is available at:
+
+* `tests/fixtures/demo_vuln_repo`
+
+It is designed to produce a readable service graph with a few purposeful vulnerabilities:
+
+* weak token handling in `auth/session.py`
+* IDOR and unsafe SQL construction in `billing/payments.py`
+* weak admin gate in `admin/export.py`
+
+Example:
+
+* `python -m pathfinder.cli run-full-pipeline --repo tests/fixtures/demo_vuln_repo --output-dir demo-output --graph-mode service`
+
 ## Output artifacts
 
 ### Structural graph

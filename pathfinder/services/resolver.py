@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import PurePosixPath
@@ -46,6 +47,7 @@ class ServiceGroupingResolver:
     ) -> ServiceGroupingArtifact:
         known_file_paths = [node.path for node in structural_graph.nodes]
         known_file_set = set(known_file_paths)
+        files_by_directory_bucket = self._files_by_directory_bucket(known_file_paths)
         invented_file_paths: set[str] = set()
         empty_service_names: list[str] = []
         dropped_service_names: list[str] = []
@@ -59,6 +61,18 @@ class ServiceGroupingResolver:
                     valid_paths.append(path)
                 else:
                     invented_file_paths.add(path)
+            if not valid_paths:
+                valid_paths.extend(
+                    self._ground_service_from_directory_buckets(
+                        service_name=service.name,
+                        files_by_directory_bucket=files_by_directory_bucket,
+                    )
+                )
+            valid_paths = self._expand_paths_to_directory_bucket(
+                service_name=service.name,
+                valid_paths=valid_paths,
+                files_by_directory_bucket=files_by_directory_bucket,
+            )
             unique_valid_paths = tuple(sorted(set(valid_paths)))
             if not unique_valid_paths:
                 empty_service_names.append(service.name)
@@ -269,6 +283,7 @@ class ServiceGroupingResolver:
 
         assignments_by_file = {assignment.file_path: assignment for assignment in assignments}
         neighbors_by_file = self._neighbors_by_file(structural_graph)
+        dominant_bucket_by_service = self._dominant_directory_bucket_by_service(assignments)
         connectivity_promoted: list[str] = []
 
         for assignment in assignments:
@@ -277,10 +292,12 @@ class ServiceGroupingResolver:
             if assignment.file_path in explicit_unclassified_paths:
                 continue
             winner = self._single_best_service(
-                Counter(
-                    assignments_by_file[neighbor].assigned_service_id
-                    for neighbor in neighbors_by_file.get(assignment.file_path, [])
-                    if assignments_by_file[neighbor].assigned_service_id in inferred_service_ids
+                self._connectivity_service_votes(
+                    file_path=assignment.file_path,
+                    neighbors=neighbors_by_file.get(assignment.file_path, []),
+                    assignments_by_file=assignments_by_file,
+                    inferred_service_ids=inferred_service_ids,
+                    dominant_bucket_by_service=dominant_bucket_by_service,
                 )
             )
             if winner is None:
@@ -309,6 +326,36 @@ class ServiceGroupingResolver:
 
         return sorted(connectivity_promoted), sorted(directory_promoted)
 
+    def _connectivity_service_votes(
+        self,
+        *,
+        file_path: str,
+        neighbors: set[str],
+        assignments_by_file: dict[str, _AssignmentState],
+        inferred_service_ids: set[str],
+        dominant_bucket_by_service: dict[str, str],
+    ) -> Counter[str]:
+        file_bucket = self._directory_bucket(file_path)
+        counts: Counter[str] = Counter()
+        for neighbor in neighbors:
+            assigned_service_id = assignments_by_file[neighbor].assigned_service_id
+            if assigned_service_id not in inferred_service_ids:
+                continue
+            dominant_bucket = dominant_bucket_by_service.get(assigned_service_id)
+            if dominant_bucket is None:
+                continue
+            if "/" in dominant_bucket and "/" in file_bucket:
+                if dominant_bucket != file_bucket:
+                    continue
+            elif ("/" in dominant_bucket) != ("/" in file_bucket):
+                continue
+            elif "/" not in dominant_bucket and "/" not in file_bucket:
+                pass
+            elif dominant_bucket != file_bucket and self._top_level_prefix(dominant_bucket) != self._top_level_prefix(file_bucket):
+                continue
+            counts[assigned_service_id] += 1
+        return counts
+
     def _cluster_remaining_unclassified_assignments(
         self,
         *,
@@ -320,16 +367,17 @@ class ServiceGroupingResolver:
         for assignment in assignments:
             if assignment.assignment_kind != ServiceAssignmentKind.UNCLASSIFIED:
                 continue
-            prefix = self._top_level_prefix(assignment.file_path)
+            if assignment.file_path in explicit_unclassified_paths:
+                continue
+            prefix = self._cluster_prefix(assignment.file_path)
             cluster_candidates.setdefault(prefix, []).append(assignment)
 
         cluster_services: list[ServiceDefinition] = []
         cluster_promoted: list[str] = []
         for prefix in sorted(cluster_candidates):
             items = sorted(cluster_candidates[prefix], key=lambda item: item.file_path)
-            if len(items) < 2:
-                continue
-            service_name = f"{prefix.replace('-', ' ').replace('_', ' ').title()} Cluster"
+            display_prefix = "root" if prefix == "." else prefix
+            service_name = f"{display_prefix.replace('/', ' ').replace('-', ' ').replace('_', ' ').title()} Cluster"
             service_id = self._unique_service_id(service_name, existing_ids)
             for assignment in items:
                 assignment.assigned_service_id = service_id
@@ -365,13 +413,22 @@ class ServiceGroupingResolver:
     ) -> Counter[str]:
         path = PurePosixPath(file_path)
         parents = [str(parent) for parent in path.parents if str(parent) not in {".", ""}]
+        file_bucket = self._directory_bucket(file_path)
         for parent in parents:
             counts: Counter[str] = Counter(
                 assignment.assigned_service_id
                 for other_path, assignment in assignments_by_file.items()
-                if other_path != file_path and self._is_in_directory(other_path, parent) and assignment.assigned_service_id in inferred_service_ids
+                if other_path != file_path
+                and self._is_in_directory(other_path, parent)
+                and assignment.assigned_service_id in inferred_service_ids
+                and self._directory_vote_allowed(
+                    file_path=file_path,
+                    other_path=other_path,
+                )
             )
             if counts:
+                if parent != file_bucket and max(counts.values()) < 2:
+                    continue
                 return counts
         return Counter()
 
@@ -390,14 +447,21 @@ class ServiceGroupingResolver:
     def _top_level_prefix(self, file_path: str) -> str:
         return PurePosixPath(file_path).parts[0]
 
+    def _cluster_prefix(self, file_path: str) -> str:
+        return self._directory_bucket(file_path)
+
     def _layer_for_prefix(self, prefix: str) -> ServiceLayer:
         normalized = prefix.lower()
-        if normalized in {"frontend", "client", "web", "ui"}:
+        if any(token in normalized for token in {"frontend", "client", "web", "ui", "dashboard", "api"}):
             return ServiceLayer.EDGE
-        if normalized in {"backend", "server", "api"}:
+        if any(token in normalized for token in {"backend", "server", "pipeline", "reporting", "service"}):
             return ServiceLayer.APPLICATION
-        if normalized in {"data", "db", "database", "migrations", "models"}:
+        if any(token in normalized for token in {"data", "db", "database", "migration", "model"}):
             return ServiceLayer.DATA
+        if any(token in normalized for token in {"llm", "structural", "security", "graph"}):
+            return ServiceLayer.DOMAIN
+        if any(token in normalized for token in {"adapter", "observability", "shared", "util"}):
+            return ServiceLayer.SHARED
         if normalized in {"tests", "test", "fixtures"}:
             return ServiceLayer.UNKNOWN
         return ServiceLayer.UNKNOWN
@@ -411,3 +475,94 @@ class ServiceGroupingResolver:
             counter += 1
         existing_ids.add(candidate)
         return candidate
+
+    def _files_by_directory_bucket(self, known_file_paths: list[str]) -> dict[str, list[str]]:
+        buckets: dict[str, list[str]] = {}
+        for path in known_file_paths:
+            bucket = self._directory_bucket(path)
+            buckets.setdefault(bucket, []).append(path)
+        return {bucket: sorted(paths) for bucket, paths in buckets.items()}
+
+    def _ground_service_from_directory_buckets(
+        self,
+        *,
+        service_name: str,
+        files_by_directory_bucket: dict[str, list[str]],
+    ) -> list[str]:
+        service_tokens = self._normalized_tokens(service_name)
+        if not service_tokens:
+            return []
+
+        best_bucket: str | None = None
+        best_score: tuple[int, int, int] | None = None
+        for bucket, paths in files_by_directory_bucket.items():
+            bucket_tokens = self._normalized_tokens(bucket)
+            overlap = service_tokens & bucket_tokens
+            if not overlap:
+                continue
+            exact_segment_matches = sum(1 for token in service_tokens if token in bucket_tokens)
+            score = (len(overlap), exact_segment_matches, -len(paths))
+            if best_score is None or score > best_score:
+                best_bucket = bucket
+                best_score = score
+        return [] if best_bucket is None else files_by_directory_bucket[best_bucket]
+
+    def _expand_paths_to_directory_bucket(
+        self,
+        *,
+        service_name: str,
+        valid_paths: list[str],
+        files_by_directory_bucket: dict[str, list[str]],
+    ) -> list[str]:
+        if not valid_paths:
+            return valid_paths
+        buckets = {self._directory_bucket(path) for path in valid_paths}
+        if len(buckets) != 1:
+            return valid_paths
+        bucket = next(iter(buckets))
+        bucket_tokens = self._normalized_tokens(bucket)
+        service_tokens = self._normalized_tokens(service_name)
+        if not (bucket_tokens & service_tokens):
+            return valid_paths
+        return list(files_by_directory_bucket.get(bucket, valid_paths))
+
+    def _normalized_tokens(self, value: str) -> set[str]:
+        spaced = re.sub(r"(?<!^)(?=[A-Z])", " ", value.replace("/", " ").replace("_", " ").replace("-", " "))
+        raw_tokens = [token.lower() for token in spaced.split() if token]
+        normalized: set[str] = set()
+        for token in raw_tokens:
+            normalized.add(token)
+            if token.endswith("s") and len(token) > 3:
+                normalized.add(token[:-1])
+            if token.endswith("service") and len(token) > len("service"):
+                normalized.add(token.removesuffix("service"))
+        return normalized
+
+    def _directory_vote_allowed(self, *, file_path: str, other_path: str) -> bool:
+        file_bucket = self._directory_bucket(file_path)
+        other_bucket = self._directory_bucket(other_path)
+        if "/" in file_bucket and "/" in other_bucket:
+            return file_bucket == other_bucket
+        if ("/" in file_bucket) != ("/" in other_bucket):
+            return False
+        return True
+
+    def _directory_bucket(self, file_path: str) -> str:
+        parts = PurePosixPath(file_path).parts
+        if len(parts) >= 3:
+            return "/".join(parts[:2])
+        if len(parts) >= 2:
+            return parts[0]
+        return "."
+
+    def _dominant_directory_bucket_by_service(self, assignments: list[_AssignmentState]) -> dict[str, str]:
+        buckets_by_service: dict[str, Counter[str]] = {}
+        for assignment in assignments:
+            if assignment.assignment_kind != ServiceAssignmentKind.PRIMARY:
+                continue
+            buckets_by_service.setdefault(assignment.assigned_service_id, Counter())[self._directory_bucket(assignment.file_path)] += 1
+        return {
+            service_id: sorted(counter.items(), key=lambda item: (-item[1], item[0]))[0][0]
+            for service_id, counter in buckets_by_service.items()
+            if counter
+        }

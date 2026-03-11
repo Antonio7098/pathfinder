@@ -9,7 +9,7 @@ from time import perf_counter
 from pydantic import BaseModel, ConfigDict
 
 from pathfinder.adapters.codegraph import read_raw_codegraph_document
-from pathfinder.llm import LLMProvider, OpenAIStructuredLLMClient, OpenRouterSettings, StructuredLLMRequest
+from pathfinder.llm import LLMProvider, MiniMaxSettings, MiniMaxStructuredLLMClient, OpenAIStructuredLLMClient, OpenRouterSettings, StructuredLLMRequest
 from pathfinder.llm.prompts.service_grouping import ServiceGroupingPromptContext, ServiceGroupingPromptRegistry
 from pathfinder.observability.logging import log_event
 from pathfinder.services.enums import ServiceTemplateVersion
@@ -61,6 +61,7 @@ class ServiceGroupingService:
         *,
         llm_client,
         model: str,
+        provider: LLMProvider = LLMProvider.OPENROUTER,
         prompt_registry: ServiceGroupingPromptRegistry | None = None,
         resolver: ServiceGroupingResolver | None = None,
         graphcode_context_builder: ServiceGroupingGraphcodeContextBuilder | None = None,
@@ -68,6 +69,7 @@ class ServiceGroupingService:
         self._logger = logger
         self._llm_client = llm_client
         self._model = model
+        self._provider = provider
         self._prompt_registry = prompt_registry or ServiceGroupingPromptRegistry()
         self._resolver = resolver or ServiceGroupingResolver()
         self._graphcode_context_builder = graphcode_context_builder or ServiceGroupingGraphcodeContextBuilder()
@@ -92,7 +94,7 @@ class ServiceGroupingService:
         prompt = prompt_template.render(ServiceGroupingPromptContext(structural_graph=structural_graph, graphcode_evidence=graphcode_evidence))
         llm_result = self._llm_client.generate(
             StructuredLLMRequest(
-                provider=LLMProvider.OPENROUTER,
+                provider=self._provider,
                 model=self._model,
                 operation_name="service_grouping.generate",
                 response_format_name=self._prompt_registry.response_model().__name__,
@@ -172,4 +174,15 @@ def create_openrouter_service_grouping_service(
 ) -> ServiceGroupingService:
     settings = OpenRouterSettings.from_env(model_override=model_override, timeout_seconds=timeout_seconds)
     llm_client = OpenAIStructuredLLMClient(logger, settings)
-    return ServiceGroupingService(logger, llm_client=llm_client, model=settings.model)
+    return ServiceGroupingService(logger, llm_client=llm_client, model=settings.model, provider=LLMProvider.OPENROUTER)
+
+
+def create_minimax_service_grouping_service(
+    logger,
+    *,
+    model_override: str | None = None,
+    timeout_seconds: float = 60.0,
+) -> ServiceGroupingService:
+    settings = MiniMaxSettings.from_env(model_override=model_override, timeout_seconds=timeout_seconds)
+    llm_client = MiniMaxStructuredLLMClient(logger, settings)
+    return ServiceGroupingService(logger, llm_client=llm_client, model=settings.model, provider=LLMProvider.MINIMAX)

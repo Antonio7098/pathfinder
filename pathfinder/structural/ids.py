@@ -8,7 +8,15 @@ from pathfinder.structural.enums import RelationshipType
 
 
 def normalize_repo_path(path: str) -> str:
-    normalized = PurePosixPath(path).as_posix()
+    trimmed = path.strip()
+    for marker in (" (node ", " via edge ", " [node ", " [edge "):
+        if marker in trimmed:
+            trimmed = trimmed.split(marker, 1)[0].strip()
+    if "#" in trimmed and "/" in trimmed:
+        trimmed = trimmed.split("#", 1)[0].strip()
+    if " -> " in trimmed and "/" in trimmed:
+        trimmed = trimmed.split(" -> ", 1)[0].strip()
+    normalized = PurePosixPath(trimmed).as_posix()
     if normalized.startswith("./"):
         normalized = normalized[2:]
     return normalized
