@@ -10,6 +10,7 @@ from pathlib import Path
 from pathfinder.errors import PathfinderError
 from pathfinder.observability.logging import configure_logging, get_logger
 from pathfinder.reporting.service import RecommendationReportRequest, create_openrouter_recommendation_report_service
+from pathfinder.services.service import ServiceGraphRequest, ServiceGraphService, ServiceGroupingRequest, create_openrouter_service_grouping_service
 from pathfinder.structural.service import StructuralExtractionRequest, StructuralExtractionService
 
 
@@ -34,6 +35,22 @@ def build_parser() -> argparse.ArgumentParser:
     report.add_argument("--max-file-chars", type=int, default=4000, help="Maximum characters to include per file")
     report.add_argument("--timeout-seconds", type=float, default=60.0, help="Per-request LLM timeout in seconds")
     report.add_argument("--verbose", action="store_true", help="Enable debug logging")
+
+    grouping = subparsers.add_parser("identify-services", help="Infer a grounded service grouping overlay from a structural graph artifact")
+    grouping.add_argument("--input", type=Path, required=True, help="Structural graph artifact JSON")
+    grouping.add_argument("--output", type=Path, default=Path("service_grouping.json"), help="Output path for service grouping JSON")
+    grouping.add_argument("--raw-codegraph", type=Path, default=None, help="Optional raw CodeGraph artifact JSON for richer graphcode context")
+    grouping.add_argument("--template-version", default="service-grouping-v1", help="Service grouping prompt template version")
+    grouping.add_argument("--model", default=None, help="Optional OpenRouter model override")
+    grouping.add_argument("--timeout-seconds", type=float, default=60.0, help="Per-request LLM timeout in seconds")
+    grouping.add_argument("--max-output-tokens", type=int, default=8192, help="Maximum completion tokens for the service-grouping LLM response")
+    grouping.add_argument("--verbose", action="store_true", help="Enable debug logging")
+
+    service_graph = subparsers.add_parser("build-service-graph", help="Build a derived service graph from a structural graph and service grouping artifact")
+    service_graph.add_argument("--structural-graph", type=Path, required=True, help="Structural graph artifact JSON")
+    service_graph.add_argument("--grouping", type=Path, required=True, help="Service grouping artifact JSON")
+    service_graph.add_argument("--output", type=Path, default=Path("service_graph.json"), help="Output path for service graph JSON")
+    service_graph.add_argument("--verbose", action="store_true", help="Enable debug logging")
     return parser
 
 
@@ -71,6 +88,37 @@ def main(argv: list[str] | None = None) -> int:
                     max_files=args.max_files,
                     max_file_chars=args.max_file_chars,
                     timeout_seconds=args.timeout_seconds,
+                )
+            )
+            print(json.dumps(result.artifact.summary.model_dump(mode="json"), sort_keys=True))
+            return 0
+
+        if args.command == "identify-services":
+            service = create_openrouter_service_grouping_service(
+                logger,
+                model_override=args.model,
+                timeout_seconds=args.timeout_seconds,
+            )
+            result = service.run(
+                ServiceGroupingRequest(
+                    input_path=args.input,
+                    output_path=args.output,
+                    raw_codegraph_input_path=args.raw_codegraph,
+                    template_version=args.template_version,
+                    timeout_seconds=args.timeout_seconds,
+                    max_output_tokens=args.max_output_tokens,
+                )
+            )
+            print(json.dumps(result.artifact.summary.model_dump(mode="json"), sort_keys=True))
+            return 0
+
+        if args.command == "build-service-graph":
+            service = ServiceGraphService(logger)
+            result = service.run(
+                ServiceGraphRequest(
+                    structural_graph_path=args.structural_graph,
+                    grouping_path=args.grouping,
+                    output_path=args.output,
                 )
             )
             print(json.dumps(result.artifact.summary.model_dump(mode="json"), sort_keys=True))

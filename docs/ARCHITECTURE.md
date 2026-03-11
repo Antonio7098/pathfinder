@@ -32,7 +32,7 @@ This is the right MVP shape because it is:
 
 ## Current implementation status
 
-The repository currently implements the **structural graph foundation** of this architecture plus a **post-path recommendation reporting subsystem**.
+The repository currently implements the **structural graph foundation**, an optional **derived service overlay**, and a **post-path recommendation reporting subsystem**.
 
 Implemented now:
 
@@ -40,6 +40,8 @@ Implemented now:
 * projection from CodeGraph's repository/file/symbol graph into a file-to-file structural graph
 * deterministic JSON artifact generation
 * provenance-rich structural edges and projection diagnostics
+* a versioned service grouping overlay that uses an LLM to group known files into services without changing the canonical structural graph
+* a deterministic service graph derivation step that aggregates file-level structural edges into service-to-service edges with provenance
 * a reusable `pathfinder.llm` layer for structured LLM calls through OpenRouter via the OpenAI SDK
 * a versioned recommendation report pipeline that consumes a selected path input artifact and repository file context
 * structured LLM observability for prompt versioning, rendered prompts, model/provider metadata, token usage, and durations
@@ -70,7 +72,10 @@ Codebase
    Structural Graph JSON + Diagnostics   ← implemented
                     │
                     ▼
-         Minimal Graph Viewer UI         ← implemented
+      Service Grouping Artifact          ← implemented optional overlay
+                    │
+                    ▼
+         Service Graph Artifact          ← implemented optional overlay
                     │
                     ▼
          Attack Transition Derivation    ← later phase
@@ -91,6 +96,8 @@ Codebase
 Core idea:
 
 * files are the unit of reasoning
+* the file graph remains the authoritative extraction/search foundation
+* service grouping is a derived overlay, not a replacement for the canonical file graph
 * files can act as entry, transition, or target nodes by role rather than by node type
 * structural dependencies define what is possible
 * attack-transition edges define how attackers plausibly move
@@ -416,6 +423,17 @@ The repository now includes this layer as a standalone post-path phase boundary:
 * `RecommendationReportArtifact` persists mitigation priorities, path narrative, citations, diagnostics, and LLM audit metadata
 * prompt/template versioning and rendered prompt bodies are recorded for observability
 * the report layer is intentionally separate from the graph schema so structural, attack, search, and reporting artifacts stay distinct
+
+---
+
+## Derived service overlay
+
+The repository now also includes a separate service overlay boundary:
+
+* `ServiceGroupingArtifact` stores LLM-proposed service groups resolved into grounded file assignments
+* `ServiceGraphArtifact` stores deterministic service-to-service edges aggregated from structural file edges
+* file nodes and structural edges remain canonical; the service layer is a projection on top
+* service edges may only be emitted when supported by existing structural edges
 
 ---
 
