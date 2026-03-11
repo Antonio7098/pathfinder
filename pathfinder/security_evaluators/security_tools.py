@@ -1,4 +1,4 @@
-"""Security evaluation helpers backed by the shared OpenAI structured client."""
+"""Security evaluation helpers backed by the shared structured LLM clients."""
 
 from __future__ import annotations
 
@@ -7,18 +7,30 @@ from pathlib import Path
 
 from pathfinder.errors import ExternalDependencyError, ValidationError
 from pathfinder.llm import LLMProvider, MiniMaxSettings, MiniMaxStructuredLLMClient, OpenAIStructuredLLMClient, OpenRouterSettings, StructuredLLMRequest
+from pathfinder.llm.models import LLMInvocationRecord, TokenUsage
 from pathfinder.llm.config import _parse_env_file
 from pathfinder.llm.prompts.security_evaluation import EdgeSecurityPromptContext, EdgeSecurityPromptRegistry, FileSecurityPromptContext, FileSecurityPromptRegistry
 from pathfinder.observability.logging import get_logger, log_event
-from pathfinder.security_evaluators.models import VALID_ATTACK_TYPES, FileSecurityAnalysisPayload
+from pathfinder.security_evaluators.models import EdgeSecurityAnalysisResult, FileSecurityAnalysisPayload, FileSecurityAnalysisResult, VALID_ATTACK_TYPES
 
 
 class PathfinderAI:
-    def __init__(self, model: str | None = None, *, provider: str = "openrouter", logger=None, llm_client=None) -> None:
+    def __init__(
+        self,
+        model: str | None = None,
+        *,
+        provider: str = "openrouter",
+        logger=None,
+        llm_client=None,
+        timeout_seconds: float | None = None,
+        max_output_tokens: int | None = None,
+    ) -> None:
         self._logger = logger or get_logger("pathfinder.security_evaluators")
         self._provider = LLMProvider(provider)
         settings = self._build_settings(model)
         self.model = settings.model
+        self._timeout_seconds = timeout_seconds or settings.timeout_seconds
+        self._max_output_tokens = max_output_tokens
         self.valid_attack_types = list(VALID_ATTACK_TYPES)
         self._file_prompts = FileSecurityPromptRegistry()
         self._edge_prompts = EdgeSecurityPromptRegistry()
@@ -35,22 +47,31 @@ class PathfinderAI:
         return self.analyze_node_content(str(path), code)
 
     def analyze_node_content(self, file_path: str, code: str):
+        return self.analyze_node_content_result(file_path, code).node_payload
+
+    def analyze_node_content_result(self, file_path: str, code: str) -> FileSecurityAnalysisResult:
         prompt = self._file_prompts.resolve("security-evaluation-v1").render(
             FileSecurityPromptContext(file_path=file_path, code=code)
         )
+        llm_request = StructuredLLMRequest(
+            provider=self._provider,
+            model=self.model,
+            operation_name="security_evaluation.file",
+            response_format_name=self._file_prompts.response_model().__name__,
+            prompt=prompt,
+            timeout_seconds=self._timeout_seconds,
+            max_output_tokens=self._max_output_tokens,
+            metadata={"file_path": file_path},
+        )
         try:
             response = self._llm_client.generate(
-                StructuredLLMRequest(
-                    provider=self._provider,
-                    model=self.model,
-                    operation_name="security_evaluation.file",
-                    response_format_name=self._file_prompts.response_model().__name__,
-                    prompt=prompt,
-                    metadata={"file_path": file_path},
-                ),
+                llm_request,
                 response_model=self._file_prompts.response_model(),
             )
-            return self._finalize_node(response.parsed_output, Path(file_path))
+            return FileSecurityAnalysisResult(
+                node_payload=self._finalize_node(response.parsed_output, Path(file_path)),
+                invocation=response.invocation,
+            )
         except (ValidationError, ExternalDependencyError) as exc:
             if self._provider != LLMProvider.MINIMAX:
                 raise
@@ -59,7 +80,10 @@ class PathfinderAI:
                 "security_evaluation.file.fallback",
                 fields={"provider": self._provider.value, "file_path": file_path, "cause": str(exc)},
             )
-            return self._fallback_node(file_path)
+            return FileSecurityAnalysisResult(
+                node_payload=self._fallback_node(file_path),
+                invocation=self._fallback_invocation(llm_request=llm_request, cause=exc),
+            )
 
     def analyze_edge(self, structural_edge, source_node, target_node):
         source_path = Path(source_node.get("absolute_path", source_node["id"]))
@@ -85,6 +109,27 @@ class PathfinderAI:
         source_code: str,
         target_code: str,
     ):
+        return self.analyze_edge_content_result(
+            structural_edge=structural_edge,
+            source_id=source_id,
+            target_id=target_id,
+            source_path=source_path,
+            target_path=target_path,
+            source_code=source_code,
+            target_code=target_code,
+        ).attack_edges
+
+    def analyze_edge_content_result(
+        self,
+        *,
+        structural_edge,
+        source_id: str,
+        target_id: str,
+        source_path: str,
+        target_path: str,
+        source_code: str,
+        target_code: str,
+    ) -> EdgeSecurityAnalysisResult:
         prompt = self._edge_prompts.resolve("security-evaluation-v1").render(
             EdgeSecurityPromptContext(
                 structural_edge_id=structural_edge["id"],
@@ -96,16 +141,19 @@ class PathfinderAI:
                 valid_attack_types=VALID_ATTACK_TYPES,
             )
         )
+        llm_request = StructuredLLMRequest(
+            provider=self._provider,
+            model=self.model,
+            operation_name="security_evaluation.edge",
+            response_format_name=self._edge_prompts.response_model().__name__,
+            prompt=prompt,
+            timeout_seconds=self._timeout_seconds,
+            max_output_tokens=self._max_output_tokens,
+            metadata={"structural_edge_id": structural_edge["id"]},
+        )
         try:
             response = self._llm_client.generate(
-                StructuredLLMRequest(
-                    provider=self._provider,
-                    model=self.model,
-                    operation_name="security_evaluation.edge",
-                    response_format_name=self._edge_prompts.response_model().__name__,
-                    prompt=prompt,
-                    metadata={"structural_edge_id": structural_edge["id"]},
-                ),
+                llm_request,
                 response_model=self._edge_prompts.response_model(),
             )
         except (ValidationError, ExternalDependencyError) as exc:
@@ -116,7 +164,10 @@ class PathfinderAI:
                 "security_evaluation.edge.omitted",
                 fields={"provider": self._provider.value, "structural_edge_id": structural_edge["id"], "cause": str(exc)},
             )
-            return []
+            return EdgeSecurityAnalysisResult(
+                attack_edges=[],
+                invocation=self._fallback_invocation(llm_request=llm_request, cause=exc),
+            )
 
         processed_edges = []
         for index, attack in enumerate(response.parsed_output.attacks):
@@ -132,7 +183,7 @@ class PathfinderAI:
                 }
             )
             processed_edges.append(edge_payload)
-        return processed_edges
+        return EdgeSecurityAnalysisResult(attack_edges=processed_edges, invocation=response.invocation)
 
     def _finalize_node(self, payload: FileSecurityAnalysisPayload, path: Path):
         data = payload.model_dump(mode="json")
@@ -171,6 +222,30 @@ class PathfinderAI:
             "node_type": "file",
             "normalized_risk_score": 0.0,
         }
+
+    def _fallback_invocation(self, *, llm_request: StructuredLLMRequest, cause: Exception) -> LLMInvocationRecord:
+        provider_request_id = None
+        if isinstance(cause, (ValidationError, ExternalDependencyError)):
+            provider_request_id = str(cause.context.get("provider_request_id")) if cause.context.get("provider_request_id") is not None else None
+        return LLMInvocationRecord(
+            provider=llm_request.provider,
+            base_url=self._llm_client._config.base_url,
+            model=llm_request.model,
+            operation_name=llm_request.operation_name,
+            response_format_name=llm_request.response_format_name,
+            template_version=llm_request.prompt.template_version,
+            prompt_version=llm_request.prompt.prompt_version,
+            system_prompt=llm_request.prompt.system_prompt,
+            user_prompt=llm_request.prompt.user_prompt,
+            system_prompt_sha256=llm_request.prompt.system_prompt_sha256,
+            user_prompt_sha256=llm_request.prompt.user_prompt_sha256,
+            system_prompt_chars=len(llm_request.prompt.system_prompt),
+            user_prompt_chars=len(llm_request.prompt.user_prompt),
+            provider_request_id=provider_request_id,
+            finish_reason="fallback",
+            usage=TokenUsage(),
+            duration_seconds=0.0,
+        )
 
     def calculate_aggregate_risk(self, node_data, attack_edges):
         if not attack_edges:

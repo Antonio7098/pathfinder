@@ -1,0 +1,42 @@
+{
+  "dataset_id": "golden:demo_vuln_repo:security_eval:v1",
+  "version": "v1",
+  "repo_path": "../demo_vuln_repo",
+  "file_risk_cases": [
+    {"case_id": "file:admin_init", "file_path": "admin/__init__.py", "expected_risk_score": 0.02, "expected_risk_label": "low", "rationale": "Package marker with no executable logic."},
+    {"case_id": "file:admin_export", "file_path": "admin/export.py", "expected_risk_score": 0.9, "expected_risk_label": "critical", "rationale": "Debug-header gate exposes a full customer export."},
+    {"case_id": "file:app", "file_path": "app.py", "expected_risk_score": 0.3, "expected_risk_label": "medium", "rationale": "Entrypoint exercises insecure admin flow but is not itself a public handler."},
+    {"case_id": "file:auth_init", "file_path": "auth/__init__.py", "expected_risk_score": 0.02, "expected_risk_label": "low", "rationale": "Package marker with no executable logic."},
+    {"case_id": "file:auth_session", "file_path": "auth/session.py", "expected_risk_score": 0.74, "expected_risk_label": "high", "rationale": "Unsafely decodes bearer tokens without signature validation and ships a hard-coded secret."},
+    {"case_id": "file:billing_init", "file_path": "billing/__init__.py", "expected_risk_score": 0.02, "expected_risk_label": "low", "rationale": "Package marker with no executable logic."},
+    {"case_id": "file:billing_payments", "file_path": "billing/payments.py", "expected_risk_score": 0.96, "expected_risk_label": "critical", "rationale": "Interpolates attacker-controlled invoice ids into SQL and returns sensitive invoice data."},
+    {"case_id": "file:shared_init", "file_path": "shared/__init__.py", "expected_risk_score": 0.02, "expected_risk_label": "low", "rationale": "Package marker with no executable logic."},
+    {"case_id": "file:shared_db", "file_path": "shared/db.py", "expected_risk_score": 0.71, "expected_risk_label": "high", "rationale": "Sensitive billing and customer sink that returns data broadly once reached."},
+    {"case_id": "file:web_init", "file_path": "web/__init__.py", "expected_risk_score": 0.02, "expected_risk_label": "low", "rationale": "Package marker with no executable logic."},
+    {"case_id": "file:web_routes", "file_path": "web/routes.py", "expected_risk_score": 0.88, "expected_risk_label": "critical", "rationale": "Public request router dispatches into weak auth, billing, and admin export flows."}
+  ],
+  "attack_edge_cases": [
+    {"case_id": "edge:web_to_auth_calls", "structural_edge_id": "se:web/routes.py->auth/session.py:calls", "source_path": "web/routes.py", "target_path": "auth/session.py", "relationship_type": "calls", "expected_attack_edge": true, "expected_attack_types": ["session_abuse", "broken_authentication"], "expected_primary_attack_type": "session_abuse", "expected_edge_attack_cost": 0.2, "rationale": "Requests reach a token parser that trusts unsigned bearer payloads."},
+    {"case_id": "edge:web_to_billing_calls", "structural_edge_id": "se:web/routes.py->billing/payments.py:calls", "source_path": "web/routes.py", "target_path": "billing/payments.py", "relationship_type": "calls", "expected_attack_edge": true, "expected_attack_types": ["idor"], "expected_primary_attack_type": "idor", "expected_edge_attack_cost": 0.25, "rationale": "Request parameters flow into invoice lookup with no owner check."},
+    {"case_id": "edge:billing_to_db_calls", "structural_edge_id": "se:billing/payments.py->shared/db.py:calls", "source_path": "billing/payments.py", "target_path": "shared/db.py", "relationship_type": "calls", "expected_attack_edge": true, "expected_attack_types": ["sql_injection", "unsafe_database_access"], "expected_primary_attack_type": "sql_injection", "expected_edge_attack_cost": 0.15, "rationale": "Interpolated invoice ids are sent directly into the database access layer."},
+    {"case_id": "edge:web_to_admin_calls", "structural_edge_id": "se:web/routes.py->admin/export.py:calls", "source_path": "web/routes.py", "target_path": "admin/export.py", "relationship_type": "calls", "expected_attack_edge": true, "expected_attack_types": ["broken_authorization"], "expected_primary_attack_type": "broken_authorization", "expected_edge_attack_cost": 0.18, "rationale": "Public routing can reach an admin export guarded only by a debug header."},
+    {"case_id": "edge:admin_to_db_calls", "structural_edge_id": "se:admin/export.py->shared/db.py:calls", "source_path": "admin/export.py", "target_path": "shared/db.py", "relationship_type": "calls", "expected_attack_edge": true, "expected_attack_types": ["unsafe_database_access"], "expected_primary_attack_type": "unsafe_database_access", "expected_edge_attack_cost": 0.22, "rationale": "Once the weak admin check is bypassed, the export reaches the customer data sink."},
+    {"case_id": "edge:app_to_web_calls", "structural_edge_id": "se:app.py->web/routes.py:calls", "source_path": "app.py", "target_path": "web/routes.py", "relationship_type": "calls", "expected_attack_edge": false, "expected_attack_types": [], "rationale": "The demo main function invokes the router locally; this edge is not an attacker transition."},
+    {"case_id": "edge:app_to_web_imports", "structural_edge_id": "se:app.py->web/routes.py:imports", "source_path": "app.py", "target_path": "web/routes.py", "relationship_type": "imports", "expected_attack_edge": false, "expected_attack_types": [], "rationale": "Import connectivity alone does not justify attacker movement."},
+    {"case_id": "edge:web_to_auth_imports", "structural_edge_id": "se:web/routes.py->auth/session.py:imports", "source_path": "web/routes.py", "target_path": "auth/session.py", "relationship_type": "imports", "expected_attack_edge": false, "expected_attack_types": [], "rationale": "This file pair is attack-relevant when called, but the import edge alone is insufficient."},
+    {"case_id": "edge:web_to_billing_imports", "structural_edge_id": "se:web/routes.py->billing/payments.py:imports", "source_path": "web/routes.py", "target_path": "billing/payments.py", "relationship_type": "imports", "expected_attack_edge": false, "expected_attack_types": [], "rationale": "Import structure without execution is treated as non-transitional in this gold set."},
+    {"case_id": "edge:admin_to_db_imports", "structural_edge_id": "se:admin/export.py->shared/db.py:imports", "source_path": "admin/export.py", "target_path": "shared/db.py", "relationship_type": "imports", "expected_attack_edge": false, "expected_attack_types": [], "rationale": "The exploitable movement is the runtime call edge, not the module import alone."}
+  ],
+  "summary": {
+    "file_case_count": 11,
+    "attack_edge_case_count": 10,
+    "high_risk_file_count": 5,
+    "positive_attack_edge_case_count": 5
+  },
+  "diagnostics": {
+    "notes": [
+      "This dataset is manually curated against tests/fixtures/demo_vuln_repo.",
+      "Imports-only edges are labeled negative to measure whether the evaluator over-generates attack transitions without direct runtime evidence."
+    ]
+  }
+}
