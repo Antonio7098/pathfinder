@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from pydantic import BaseModel, ConfigDict, Field
+
+from pathfinder.llm.models import LLMInvocationRecord
 
 
 VALID_ATTACK_TYPES: tuple[str, ...] = (
@@ -56,3 +60,15 @@ class EdgeSecurityAnalysisPayload(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     attacks: list[AttackTransitionCandidate] = Field(default_factory=list)
+
+
+@dataclass(slots=True)
+class FileSecurityAnalysisResult:
+    node_payload: dict[str, object]
+    invocation: LLMInvocationRecord
+
+
+@dataclass(slots=True)
+class EdgeSecurityAnalysisResult:
+    attack_edges: list[dict[str, object]]
+    invocation: LLMInvocationRecord
