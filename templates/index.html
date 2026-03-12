@@ -20,7 +20,6 @@ body {
     box-shadow: 0 10px 25px rgba(0,0,0,0.08);
 }
 </style>
-
 </head>
 
 <body>
@@ -31,7 +30,7 @@ body {
 <h2 class="mb-4">Pathfinder Pipeline</h2>
 
 <p class="text-muted">
-Run the full analysis pipeline against a repository.
+Run a repository analysis pipeline.
 </p>
 
 <form action="/run" method="post">
@@ -46,14 +45,22 @@ Run the full analysis pipeline against a repository.
     required>
 </div>
 
-<div class="mb-4">
+<div class="mb-3">
 <label class="form-label">Graph Mode</label>
 
 <select name="graph_mode" class="form-select">
 <option value="service">Service</option>
 <option value="module">Module</option>
 </select>
+</div>
 
+<div class="mb-4">
+<label class="form-label">Pipeline Type</label>
+
+<select name="pipeline_type" class="form-select">
+<option value="full">Full Pipeline (Minimax)</option>
+<option value="latency">Latency Optimized Pipeline</option>
+</select>
 </div>
 
 <button type="submit" class="btn btn-primary w-100">

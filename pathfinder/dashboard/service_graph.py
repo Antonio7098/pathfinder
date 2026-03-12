@@ -303,17 +303,16 @@ font-family: Arial, sans-serif;
 margin:0;
 background:#ffffff;
 color:#222;
+min-height:100vh;
 }}
 
 .top {{
-height:65vh;
+padding:20px;
 border-bottom:1px solid #ddd;
-padding:10px;
 }}
 
 .bottom {{
 display:flex;
-height:35vh;
 background:#f8f9fa;
 }}
 
@@ -352,6 +351,7 @@ border-radius:6px;
 background:#ffffff;
 border-radius:6px;
 box-shadow:0 2px 6px rgba(0,0,0,0.1);
+padding:15px;
 }}
 
 </style>
@@ -361,7 +361,9 @@ box-shadow:0 2px 6px rgba(0,0,0,0.1);
 <body>
 
 <div class="top">
-{graph_html}
+    <div class="card">
+        {graph_html}
+    </div>
 </div>
 
 <div class="bottom">

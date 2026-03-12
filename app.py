@@ -18,21 +18,40 @@ def index():
 def run_pipeline():
     repo = request.form["repo"]
     graph_mode = request.form.get("graph_mode", "service")
+    pipeline_type = request.form.get("pipeline_type", "full")
 
     job_id = str(uuid.uuid4())
     output_dir = os.path.join(RUNS_DIR, job_id)
 
-    cmd = [
-        "python",
-        "-m",
-        "pathfinder.cli",
-        "run-full-pipeline",
-        "--repo", repo,
-        "--output-dir", output_dir,
-        "--graph-mode", graph_mode,
-        "--provider", "minimax",
-        "--timeout-seconds", "600"
-    ]
+    if pipeline_type == "latency":
+
+        cmd = [
+            "python",
+            "-m",
+            "pathfinder.cli",
+            "run-latency-optimized-pipeline",
+            "--repo", repo,
+            "--output-dir", output_dir,
+            "--graph-mode", graph_mode,
+            "--provider", "openrouter",
+            "--model", "nvidia/nemotron-3-super-120b-a12b:free",
+            "--timeout-seconds", "300",
+            "--max-concurrent-security-tasks", "6"
+        ]
+
+    else:
+
+        cmd = [
+            "python",
+            "-m",
+            "pathfinder.cli",
+            "run-full-pipeline",
+            "--repo", repo,
+            "--output-dir", output_dir,
+            "--graph-mode", graph_mode,
+            "--provider", "minimax",
+            "--timeout-seconds", "600"
+        ]
 
     subprocess.run(cmd, check=True)
 
