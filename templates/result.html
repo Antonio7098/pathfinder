@@ -1,17 +1,58 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<title>Pipeline Started</title>
+<meta charset="UTF-8">
+<title>Pipeline Result</title>
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+<style>
+body {
+    background-color: #f5f7fa;
+}
+
+.result-box {
+    max-width: 700px;
+    margin-top: 100px;
+    background: white;
+    padding: 40px;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+}
+</style>
+
 </head>
+
 <body>
 
-<h2>Pipeline completed</h2>
+<div class="container">
+<div class="result-box text-center">
 
-<p>Job ID: {{ job_id }}</p>
+<h2 class="mb-3">Pipeline Complete</h2>
 
-<a href="{{ report_url }}" target="_blank">
+<p class="text-muted mb-4">
+Your analysis has finished successfully.
+</p>
+
+<div class="mb-3">
+<strong>Job ID:</strong><br>
+<code>{{ job_id }}</code>
+</div>
+
+<div class="d-grid gap-2 mt-4">
+
+<a href="{{ report_url }}" target="_blank" class="btn btn-success">
 Open HTML Report
 </a>
+
+<a href="/" class="btn btn-outline-secondary">
+Run Another Analysis
+</a>
+
+</div>
+
+</div>
+</div>
 
 </body>
 </html>

@@ -1,29 +1,69 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Pathfinder Pipeline</title>
+<meta charset="UTF-8">
+<title>Pathfinder Pipeline Runner</title>
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+<style>
+body {
+    background-color: #f5f7fa;
+}
+
+.container-box {
+    max-width: 700px;
+    margin-top: 80px;
+    background: white;
+    padding: 40px;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+}
+</style>
+
 </head>
+
 <body>
 
-<h1>Run Pathfinder Pipeline</h1>
+<div class="container">
+<div class="container-box">
+
+<h2 class="mb-4">Pathfinder Pipeline</h2>
+
+<p class="text-muted">
+Run the full analysis pipeline against a repository.
+</p>
 
 <form action="/run" method="post">
 
-<label>Repository Path</label><br>
-<input type="text" name="repo" placeholder="/path/to/repo" required>
-<br><br>
+<div class="mb-3">
+<label class="form-label">Repository Path</label>
+<input
+    type="text"
+    name="repo"
+    class="form-control"
+    placeholder="tests/fixtures/demo_vuln_repo"
+    required>
+</div>
 
-<label>Graph Mode</label><br>
-<select name="graph_mode">
-  <option value="service">Service</option>
-  <option value="module">Module</option>
+<div class="mb-4">
+<label class="form-label">Graph Mode</label>
+
+<select name="graph_mode" class="form-select">
+<option value="service">Service</option>
+<option value="module">Module</option>
 </select>
 
-<br><br>
+</div>
 
-<button type="submit">Run Pipeline</button>
+<button type="submit" class="btn btn-primary w-100">
+Run Pipeline
+</button>
 
 </form>
+
+</div>
+</div>
 
 </body>
 </html>

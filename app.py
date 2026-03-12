@@ -22,8 +22,6 @@ def run_pipeline():
     job_id = str(uuid.uuid4())
     output_dir = os.path.join(RUNS_DIR, job_id)
 
-    os.makedirs(output_dir, exist_ok=True)
-
     cmd = [
         "python",
         "-m",
@@ -36,20 +34,16 @@ def run_pipeline():
         "--timeout-seconds", "600"
     ]
 
-    try:
-        subprocess.run(cmd, check=True)
+    subprocess.run(cmd, check=True)
 
-        return render_template(
-            "result.html",
-            job_id=job_id,
-            report_url=f"/results/{job_id}/dashboard.html"
-        )
-
-    except subprocess.CalledProcessError as e:
-        return f"Pipeline failed: {e}"
+    return render_template(
+        "result.html",
+        job_id=job_id,
+        report_url=f"/results/{job_id}/dashboard.html"
+    )
 
 
-@app.route("/results/<job_id>/<path:filename>")
+@app.route("/results/<job_id>/<path:filename>", methods=["GET"])
 def serve_results(job_id, filename):
     return send_from_directory(
         os.path.join(RUNS_DIR, job_id),
