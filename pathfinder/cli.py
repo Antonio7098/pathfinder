@@ -11,7 +11,7 @@ from pathlib import Path
 from pathfinder.evaluation import PricingConfig, SecurityEvaluationRequest, SecurityEvaluationService
 from pathfinder.errors import PathfinderError
 from pathfinder.observability.logging import configure_logging, get_logger
-from pathfinder.pipeline import FullPipelineRequest, FullPipelineService
+from pathfinder.pipeline import FullPipelineRequest, FullPipelineService, LatencyOptimizedFullPipelineService
 from pathfinder.reporting.service import (
     RecommendationReportRequest,
     create_minimax_recommendation_report_service,
@@ -79,7 +79,23 @@ def build_parser() -> argparse.ArgumentParser:
     full_pipeline.add_argument("--max-files", type=int, default=8, help="Maximum number of repository files to include in recommendation prompt context")
     full_pipeline.add_argument("--max-file-chars", type=int, default=4000, help="Maximum characters to include per file in recommendation prompt context")
     full_pipeline.add_argument("--max-output-tokens", type=int, default=8192, help="Maximum completion tokens for LLM-backed stages")
+    full_pipeline.add_argument("--max-concurrent-security-tasks", type=int, default=6, help="Maximum concurrent security-analysis LLM tasks")
     full_pipeline.add_argument("--verbose", action="store_true", help="Enable debug logging")
+
+    latency_pipeline = subparsers.add_parser("run-latency-optimized-pipeline", help="Run a latency-optimized pipeline variant with bounded parallel security analysis")
+    latency_pipeline.add_argument("--repo", type=Path, required=True, help="Repository path to analyze")
+    latency_pipeline.add_argument("--output-dir", type=Path, default=Path("pathfinder-output"), help="Directory for all generated artifacts")
+    latency_pipeline.add_argument("--graph-mode", choices=("service", "file"), default="service", help="Security evaluation graph mode")
+    latency_pipeline.add_argument("--model", default=None, help="Optional model override for LLM-backed stages")
+    latency_pipeline.add_argument("--provider", choices=("openrouter", "minimax"), default="openrouter", help="LLM provider for service grouping, security evaluation, and recommendations")
+    latency_pipeline.add_argument("--include-hidden", action="store_true", help="Include hidden files during extraction")
+    latency_pipeline.add_argument("--strict-parse", action="store_true", help="Fail extraction on parse errors")
+    latency_pipeline.add_argument("--timeout-seconds", type=float, default=60.0, help="Per-request LLM timeout in seconds")
+    latency_pipeline.add_argument("--max-files", type=int, default=8, help="Maximum number of repository files to include in recommendation prompt context")
+    latency_pipeline.add_argument("--max-file-chars", type=int, default=4000, help="Maximum characters to include per file in recommendation prompt context")
+    latency_pipeline.add_argument("--max-output-tokens", type=int, default=8192, help="Maximum completion tokens for LLM-backed stages")
+    latency_pipeline.add_argument("--max-concurrent-security-tasks", type=int, default=6, help="Maximum concurrent security-analysis LLM tasks")
+    latency_pipeline.add_argument("--verbose", action="store_true", help="Enable debug logging")
 
     security_eval = subparsers.add_parser("run-security-eval", help="Evaluate file-risk classification and attack-edge derivation against a manual golden dataset")
     security_eval.add_argument("--dataset", type=Path, required=True, help="Manual golden dataset JSON")
@@ -197,6 +213,44 @@ def main(argv: list[str] | None = None) -> int:
                         max_files=args.max_files,
                         max_file_chars=args.max_file_chars,
                         max_output_tokens=args.max_output_tokens,
+                        max_concurrent_security_tasks=args.max_concurrent_security_tasks,
+                    )
+                )
+            )
+            print(
+                json.dumps(
+                    {
+                        "structural_graph_path": str(result.structural_graph_path),
+                        "raw_codegraph_path": str(result.raw_codegraph_path),
+                        "service_grouping_path": str(result.service_grouping_path),
+                        "service_graph_path": str(result.service_graph_path),
+                        "security_graph_path": str(result.security_graph_path),
+                        "selected_path_input_path": str(result.selected_path_input_path),
+                        "recommendation_report_path": str(result.recommendation_report_path),
+                        "dashboard_path": str(result.dashboard_path),
+                    },
+                    sort_keys=True,
+                )
+            )
+            return 0
+
+        if args.command == "run-latency-optimized-pipeline":
+            service = LatencyOptimizedFullPipelineService(logger)
+            result = asyncio.run(
+                service.run(
+                    FullPipelineRequest(
+                        repo_path=args.repo,
+                        output_dir=args.output_dir,
+                        graph_mode=args.graph_mode,
+                        provider=args.provider,
+                        model=args.model,
+                        include_hidden=args.include_hidden,
+                        strict_parse=args.strict_parse,
+                        timeout_seconds=args.timeout_seconds,
+                        max_files=args.max_files,
+                        max_file_chars=args.max_file_chars,
+                        max_output_tokens=args.max_output_tokens,
+                        max_concurrent_security_tasks=args.max_concurrent_security_tasks,
                     )
                 )
             )

@@ -207,6 +207,47 @@ def test_cli_run_full_pipeline(monkeypatch, tmp_path: Path, capsys) -> None:
     assert payload["dashboard_path"].endswith("dashboard.html")
 
 
+def test_cli_run_latency_optimized_pipeline(monkeypatch, tmp_path: Path, capsys) -> None:
+    repo_path = tmp_path / "repo"
+    repo_path.mkdir()
+
+    class FakeService:
+        def __init__(self, logger) -> None:
+            self._logger = logger
+
+        async def run(self, request):
+            assert request.repo_path == repo_path
+            assert request.max_concurrent_security_tasks == 4
+            return FullPipelineResult(
+                structural_graph_path=tmp_path / "out" / "structural_graph.json",
+                raw_codegraph_path=tmp_path / "out" / "raw_codegraph.json",
+                service_grouping_path=tmp_path / "out" / "service_grouping.json",
+                service_graph_path=tmp_path / "out" / "service_graph.json",
+                security_graph_path=tmp_path / "out" / "security_graph.json",
+                selected_path_input_path=tmp_path / "out" / "recommendation_input.json",
+                recommendation_report_path=tmp_path / "out" / "recommendation_report.json",
+                dashboard_path=tmp_path / "out" / "dashboard.html",
+            )
+
+    monkeypatch.setattr("pathfinder.cli.LatencyOptimizedFullPipelineService", FakeService)
+
+    exit_code = main(
+        [
+            "run-latency-optimized-pipeline",
+            "--repo",
+            str(repo_path),
+            "--output-dir",
+            str(tmp_path / "out"),
+            "--max-concurrent-security-tasks",
+            "4",
+        ]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out.strip())
+    assert payload["security_graph_path"].endswith("security_graph.json")
+
+
 def test_full_pipeline_service_stageflow_smoke(monkeypatch, tmp_path: Path) -> None:
     repo_path = tmp_path / "repo"
     (repo_path / "web").mkdir(parents=True)

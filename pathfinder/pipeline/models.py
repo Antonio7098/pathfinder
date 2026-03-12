@@ -19,6 +19,7 @@ class FullPipelineRequest:
     max_files: int = 8
     max_file_chars: int = 4000
     max_output_tokens: int = 8192
+    max_concurrent_security_tasks: int = 6
 
 
 @dataclass(frozen=True, slots=True)

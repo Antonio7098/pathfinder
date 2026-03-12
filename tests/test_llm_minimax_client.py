@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import json
+from urllib.error import HTTPError
 
 import pytest
 from pydantic import BaseModel
@@ -244,3 +245,19 @@ def test_minimax_client_repairs_alternate_recommendation_schema() -> None:
     assert result.parsed_output.recommendations[0].title == "Sanitize error context"
     assert result.parsed_output.recommendations[0].primary_file_path == "pkg/db.py"
     assert result.parsed_output.recommendations[0].mitigation_steps == ["Mask secrets", "Avoid leaking paths"]
+
+
+def test_minimax_client_surfaces_http_status_code() -> None:
+    def fake_opener(req, timeout=0):
+        raise HTTPError(req.full_url, 429, "Too Many Requests", hdrs=None, fp=io.BytesIO(b'{"error":"rate limited"}'))
+
+    client = MiniMaxStructuredLLMClient(
+        get_logger("llm-test"),
+        MiniMaxSettings(api_key="test", model="MiniMax-M2.5"),
+        opener=fake_opener,
+    )
+
+    with pytest.raises(Exception) as exc_info:
+        client.generate(build_request(), response_model=DummyPayload)
+
+    assert getattr(exc_info.value, "context", {}).get("status_code") == 429

@@ -7,6 +7,7 @@ import json
 from dataclasses import dataclass
 from dataclasses import asdict
 from pathlib import Path
+from typing import Final
 
 from stageflow.api import Pipeline, StageContext, StageKind, stage_metadata
 from stageflow.pipeline.interceptors import LoggingInterceptor, MetricsInterceptor, TimeoutInterceptor
@@ -31,6 +32,9 @@ from pathfinder.services.service import (
 )
 from pathfinder.structural.io import read_structural_graph
 from pathfinder.structural.service import StructuralExtractionRequest, StructuralExtractionService
+
+
+DEFAULT_MAX_CONCURRENT_SECURITY_TASKS: Final[int] = 6
 
 
 def _stage_data(ctx: StageContext, stage_name: str) -> dict:
@@ -134,6 +138,45 @@ class EvaluateSecurityStage:
             ai=ai,
             timeout_seconds=request.timeout_seconds,
             provider=request.provider,
+            serialize=request.provider == "minimax",
+            max_concurrent_tasks=max(1, request.max_concurrent_security_tasks),
+        )
+        output_path = request.output_dir / "security_graph.json"
+        output_path.write_text(json.dumps(graph, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        return {"security_graph_path": str(output_path)}
+
+
+@stage_metadata(name="evaluate_security", kind=StageKind.ENRICH)
+class LatencyOptimizedEvaluateSecurityStage(EvaluateSecurityStage):
+    async def execute(self, ctx: StageContext) -> dict[str, str]:
+        request: FullPipelineRequest = ctx.snapshot.metadata["request"]
+        logger = ctx.snapshot.metadata["logger"]
+        if request.provider == "minimax":
+            ai = PathfinderAI(model=request.model, provider=request.provider, logger=logger)
+        else:
+            ai = PathfinderAI(model=request.model, logger=logger)
+        if request.graph_mode == "service":
+            service_graph_data = _stage_data(ctx, "build_service_graph")
+            graph_input = await asyncio.to_thread(
+                _build_service_security_graph_input,
+                repo_path=request.repo_path,
+                service_graph_path=Path(service_graph_data["service_graph_path"]),
+            )
+        else:
+            build_data = _stage_data(ctx, "build_structural_graph")
+            artifact = read_structural_graph(Path(build_data["structural_graph_path"]))
+            graph_input = await asyncio.to_thread(
+                _build_file_security_graph_input,
+                artifact=artifact,
+                repo_path=request.repo_path,
+            )
+        graph = await _run_security_subpipeline(
+            graph_input=graph_input,
+            ai=ai,
+            timeout_seconds=request.timeout_seconds,
+            provider=request.provider,
+            serialize=False,
+            max_concurrent_tasks=max(1, request.max_concurrent_security_tasks),
         )
         output_path = request.output_dir / "security_graph.json"
         output_path.write_text(json.dumps(graph, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -218,17 +261,7 @@ class FullPipelineService:
 
     async def run(self, request: FullPipelineRequest) -> FullPipelineResult:
         TimeoutInterceptor.DEFAULT_TIMEOUT_MS = max(int(request.timeout_seconds * 1000), 1)
-        pipeline = (
-            Pipeline()
-            .with_stage("build_structural_graph", BuildStructuralGraphStage, StageKind.WORK)
-            .with_stage("identify_services", IdentifyServicesStage, StageKind.ENRICH, dependencies=("build_structural_graph",))
-            .with_stage("build_service_graph", BuildServiceGraphStage, StageKind.WORK, dependencies=("build_structural_graph", "identify_services"))
-            .with_stage("evaluate_security", EvaluateSecurityStage, StageKind.ENRICH, dependencies=("build_structural_graph", "build_service_graph"))
-            .with_stage("select_attack_path", SelectAttackPathStage, StageKind.GUARD, dependencies=("evaluate_security",))
-            .with_stage("build_report_input", BuildReportInputStage, StageKind.TRANSFORM, dependencies=("evaluate_security", "select_attack_path"))
-            .with_stage("generate_recommendations", GenerateRecommendationsStage, StageKind.AGENT, dependencies=("build_report_input",))
-            .with_stage("render_dashboard", RenderDashboardStage, StageKind.WORK, dependencies=("evaluate_security", "select_attack_path", "generate_recommendations"))
-        )
+        pipeline = self._build_pipeline()
         log_event(
             self._logger,
             "full_pipeline.started",
@@ -240,7 +273,7 @@ class FullPipelineService:
             emit_pipeline_wide_event=False,
             metadata={"request": request, "logger": self._logger},
             input_text=str(request.repo_path),
-            topology="pathfinder_full_pipeline",
+            topology=self._topology_name(),
             execution_mode="default",
         )
         failed_stages = results.failed()
@@ -269,6 +302,40 @@ class FullPipelineService:
             fields={key: str(value) for key, value in asdict(result).items()},
         )
         return result
+
+    def _build_pipeline(self) -> Pipeline:
+        return (
+            Pipeline()
+            .with_stage("build_structural_graph", BuildStructuralGraphStage, StageKind.WORK)
+            .with_stage("identify_services", IdentifyServicesStage, StageKind.ENRICH, dependencies=("build_structural_graph",))
+            .with_stage("build_service_graph", BuildServiceGraphStage, StageKind.WORK, dependencies=("build_structural_graph", "identify_services"))
+            .with_stage("evaluate_security", EvaluateSecurityStage, StageKind.ENRICH, dependencies=("build_structural_graph", "build_service_graph"))
+            .with_stage("select_attack_path", SelectAttackPathStage, StageKind.GUARD, dependencies=("evaluate_security",))
+            .with_stage("build_report_input", BuildReportInputStage, StageKind.TRANSFORM, dependencies=("evaluate_security", "select_attack_path"))
+            .with_stage("generate_recommendations", GenerateRecommendationsStage, StageKind.AGENT, dependencies=("build_report_input",))
+            .with_stage("render_dashboard", RenderDashboardStage, StageKind.WORK, dependencies=("evaluate_security", "select_attack_path", "generate_recommendations"))
+        )
+
+    def _topology_name(self) -> str:
+        return "pathfinder_full_pipeline"
+
+
+class LatencyOptimizedFullPipelineService(FullPipelineService):
+    def _build_pipeline(self) -> Pipeline:
+        return (
+            Pipeline()
+            .with_stage("build_structural_graph", BuildStructuralGraphStage, StageKind.WORK)
+            .with_stage("identify_services", IdentifyServicesStage, StageKind.ENRICH, dependencies=("build_structural_graph",))
+            .with_stage("build_service_graph", BuildServiceGraphStage, StageKind.WORK, dependencies=("build_structural_graph", "identify_services"))
+            .with_stage("evaluate_security", LatencyOptimizedEvaluateSecurityStage, StageKind.ENRICH, dependencies=("build_structural_graph", "build_service_graph"))
+            .with_stage("select_attack_path", SelectAttackPathStage, StageKind.GUARD, dependencies=("evaluate_security",))
+            .with_stage("build_report_input", BuildReportInputStage, StageKind.TRANSFORM, dependencies=("evaluate_security", "select_attack_path"))
+            .with_stage("generate_recommendations", GenerateRecommendationsStage, StageKind.AGENT, dependencies=("build_report_input",))
+            .with_stage("render_dashboard", RenderDashboardStage, StageKind.WORK, dependencies=("evaluate_security", "select_attack_path", "generate_recommendations"))
+        )
+
+    def _topology_name(self) -> str:
+        return "pathfinder_latency_optimized_pipeline"
 
 
 def _select_best_path(security_graph: dict[str, object]) -> dict[str, object]:
@@ -575,31 +642,39 @@ class SecurityGraphInput:
 class _SecurityNodeStage:
     kind = StageKind.ENRICH
 
-    def __init__(self, *, work_item: SecurityNodeWorkItem, ai: PathfinderAI) -> None:
+    def __init__(self, *, work_item: SecurityNodeWorkItem, ai: PathfinderAI, limiter: asyncio.Semaphore | None = None) -> None:
         self._work_item = work_item
         self._ai = ai
+        self._limiter = limiter
 
     async def execute(self, ctx: StageContext) -> dict[str, object]:
+        if self._limiter is None:
+            analyzed = await self._analyze()
+        else:
+            async with self._limiter:
+                analyzed = await self._analyze()
+        analyzed.update(self._work_item.node_payload)
+        return analyzed
+
+    async def _analyze(self) -> dict[str, object]:
         if self._work_item.analysis_code is not None and hasattr(self._ai, "analyze_node_content"):
-            analyzed = await asyncio.to_thread(
+            return await asyncio.to_thread(
                 self._ai.analyze_node_content,
                 self._work_item.analysis_file_path,
                 self._work_item.analysis_code,
             )
-        else:
-            target = self._work_item.absolute_path or self._work_item.analysis_file_path
-            analyzed = await asyncio.to_thread(self._ai.analyze_node, target)
-        analyzed.update(self._work_item.node_payload)
-        return analyzed
+        target = self._work_item.absolute_path or self._work_item.analysis_file_path
+        return await asyncio.to_thread(self._ai.analyze_node, target)
 
 
 class _SecurityEdgeStage:
     kind = StageKind.ENRICH
 
-    def __init__(self, *, work_item: SecurityEdgeWorkItem, ai: PathfinderAI, node_stage_names: dict[str, str]) -> None:
+    def __init__(self, *, work_item: SecurityEdgeWorkItem, ai: PathfinderAI, node_stage_names: dict[str, str], limiter: asyncio.Semaphore | None = None) -> None:
         self._work_item = work_item
         self._ai = ai
         self._node_stage_names = node_stage_names
+        self._limiter = limiter
 
     async def execute(self, ctx: StageContext) -> dict[str, object]:
         source_node = (
@@ -612,8 +687,20 @@ class _SecurityEdgeStage:
             if self._work_item.target_node_payload is None
             else dict(self._work_item.target_node_payload)
         )
+        if self._limiter is None:
+            analyzed = await self._analyze(source_node=source_node, target_node=target_node)
+        else:
+            async with self._limiter:
+                analyzed = await self._analyze(source_node=source_node, target_node=target_node)
+        if not analyzed:
+            return {}
+        edge_result = dict(analyzed[0])
+        edge_result.setdefault("edge_payload", dict(self._work_item.edge_payload))
+        return edge_result
+
+    async def _analyze(self, *, source_node: dict[str, object], target_node: dict[str, object]) -> list[dict[str, object]]:
         if self._work_item.source_code is not None and self._work_item.target_code is not None and hasattr(self._ai, "analyze_edge_content"):
-            analyzed = await asyncio.to_thread(
+            return await asyncio.to_thread(
                 self._ai.analyze_edge_content,
                 structural_edge=self._work_item.edge_payload,
                 source_id=self._work_item.source_node_id,
@@ -623,18 +710,12 @@ class _SecurityEdgeStage:
                 source_code=self._work_item.source_code,
                 target_code=self._work_item.target_code,
             )
-        else:
-            analyzed = await asyncio.to_thread(
-                self._ai.analyze_edge,
-                self._work_item.edge_payload,
-                source_node,
-                target_node,
-            )
-        if not analyzed:
-            return {}
-        edge_result = dict(analyzed[0])
-        edge_result.setdefault("edge_payload", dict(self._work_item.edge_payload))
-        return edge_result
+        return await asyncio.to_thread(
+            self._ai.analyze_edge,
+            self._work_item.edge_payload,
+            source_node,
+            target_node,
+        )
 
 
 class _SecurityAggregateStage:
@@ -673,20 +754,28 @@ class _SecurityAggregateStage:
         }
 
 
-async def _run_security_subpipeline(*, graph_input: SecurityGraphInput, ai: PathfinderAI, timeout_seconds: float, provider: str) -> dict[str, object]:
+async def _run_security_subpipeline(
+    *,
+    graph_input: SecurityGraphInput,
+    ai: PathfinderAI,
+    timeout_seconds: float,
+    provider: str,
+    serialize: bool,
+    max_concurrent_tasks: int,
+) -> dict[str, object]:
     TimeoutInterceptor.DEFAULT_TIMEOUT_MS = max(int(timeout_seconds * 1000), 1)
     node_stage_names = {item.node_id: f"node::{item.node_id}" for item in graph_input.nodes}
     edge_stage_names = {item.edge_id: f"edge::{item.edge_id}" for item in graph_input.edges}
     pipeline = Pipeline(name=f"security_{graph_input.graph_mode}")
     previous_node_stage_name: str | None = None
-    serialize = provider == "minimax"
+    limiter = asyncio.Semaphore(1 if serialize else max(1, max_concurrent_tasks))
     for item in graph_input.nodes:
         dependencies: tuple[str, ...] = ()
         if serialize and previous_node_stage_name is not None:
             dependencies = (previous_node_stage_name,)
         pipeline = pipeline.with_stage(
             node_stage_names[item.node_id],
-            _SecurityNodeStage(work_item=item, ai=ai),
+            _SecurityNodeStage(work_item=item, ai=ai, limiter=limiter),
             StageKind.ENRICH,
             dependencies=dependencies,
         )
@@ -702,7 +791,7 @@ async def _run_security_subpipeline(*, graph_input: SecurityGraphInput, ai: Path
             edge_dependencies = edge_dependencies + (previous_edge_stage_name,)
         pipeline = pipeline.with_stage(
             edge_stage_names[item.edge_id],
-            _SecurityEdgeStage(work_item=item, ai=ai, node_stage_names=node_stage_names),
+            _SecurityEdgeStage(work_item=item, ai=ai, node_stage_names=node_stage_names, limiter=limiter),
             StageKind.ENRICH,
             dependencies=edge_dependencies,
         )
@@ -728,7 +817,16 @@ async def _run_security_subpipeline(*, graph_input: SecurityGraphInput, ai: Path
     )
     failed_stages = results.failed()
     if failed_stages:
-        raise ValidationError("Security subpipeline failed", context={"failed_stages": failed_stages, "graph_mode": graph_input.graph_mode})
+        raise ValidationError(
+            "Security subpipeline failed",
+            context={
+                "failed_stages": failed_stages,
+                "graph_mode": graph_input.graph_mode,
+                "provider": provider,
+                "serialize": serialize,
+                "max_concurrent_tasks": 1 if serialize else max(1, max_concurrent_tasks),
+            },
+        )
     return results.data("aggregate_security_graph")
 
 
@@ -813,7 +911,6 @@ def _build_file_security_graph_input(*, artifact, repo_path: Path) -> SecurityGr
             target_node_id=edge.target,
             source_file_path=str(repo_path / edge.source),
             target_file_path=str(repo_path / edge.target),
-            absolute_path=None,
         )
         for edge in artifact.structural_edges
     ]

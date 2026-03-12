@@ -9,7 +9,15 @@ from time import perf_counter
 from pydantic import BaseModel, ConfigDict
 
 from pathfinder.adapters.codegraph import read_raw_codegraph_document
-from pathfinder.llm import LLMProvider, MiniMaxSettings, MiniMaxStructuredLLMClient, OpenAIStructuredLLMClient, OpenRouterSettings, StructuredLLMRequest
+from pathfinder.llm import (
+    LLMProvider,
+    MiniMaxSettings,
+    MiniMaxStructuredLLMClient,
+    OpenAIStructuredLLMClient,
+    OpenRouterSettings,
+    ResilientStructuredLLMClient,
+    StructuredLLMRequest,
+)
 from pathfinder.llm.prompts.service_grouping import ServiceGroupingPromptContext, ServiceGroupingPromptRegistry
 from pathfinder.observability.logging import log_event
 from pathfinder.services.enums import ServiceTemplateVersion
@@ -173,7 +181,7 @@ def create_openrouter_service_grouping_service(
     timeout_seconds: float = 60.0,
 ) -> ServiceGroupingService:
     settings = OpenRouterSettings.from_env(model_override=model_override, timeout_seconds=timeout_seconds)
-    llm_client = OpenAIStructuredLLMClient(logger, settings)
+    llm_client = ResilientStructuredLLMClient(logger, OpenAIStructuredLLMClient(logger, settings))
     return ServiceGroupingService(logger, llm_client=llm_client, model=settings.model, provider=LLMProvider.OPENROUTER)
 
 
@@ -184,5 +192,5 @@ def create_minimax_service_grouping_service(
     timeout_seconds: float = 60.0,
 ) -> ServiceGroupingService:
     settings = MiniMaxSettings.from_env(model_override=model_override, timeout_seconds=timeout_seconds)
-    llm_client = MiniMaxStructuredLLMClient(logger, settings)
+    llm_client = ResilientStructuredLLMClient(logger, MiniMaxStructuredLLMClient(logger, settings))
     return ServiceGroupingService(logger, llm_client=llm_client, model=settings.model, provider=LLMProvider.MINIMAX)

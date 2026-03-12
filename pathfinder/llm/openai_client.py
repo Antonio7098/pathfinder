@@ -74,6 +74,7 @@ class OpenAIStructuredLLMClient:
                 timeout=request.timeout_seconds,
             )
         except Exception as exc:
+            status_code = getattr(exc, "status_code", None)
             raise ExternalDependencyError(
                 "Structured LLM request failed",
                 context={
@@ -81,6 +82,7 @@ class OpenAIStructuredLLMClient:
                     "base_url": self._config.base_url,
                     "model": request.model,
                     "operation_name": request.operation_name,
+                    "status_code": status_code,
                     "cause": str(exc),
                 },
             ) from exc

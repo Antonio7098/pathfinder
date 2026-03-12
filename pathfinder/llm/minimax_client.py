@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from time import perf_counter
 from typing import Any, TypeVar
+from urllib.error import HTTPError
 from urllib import request as urllib_request
 
 from pathfinder.errors import ExternalDependencyError, ValidationError
@@ -146,6 +147,24 @@ class MiniMaxStructuredLLMClient:
                 response_body = response.read().decode("utf-8")
                 response_json = json.loads(response_body)
                 status_code = getattr(response, "status", None) or response.getcode()
+        except HTTPError as exc:
+            response_body = exc.read().decode("utf-8", errors="replace")
+            try:
+                response_json = json.loads(response_body) if response_body else {}
+            except json.JSONDecodeError:
+                response_json = {"raw_response": response_body[:500]}
+            raise ExternalDependencyError(
+                "Structured LLM request failed",
+                context={
+                    "provider": request.provider.value,
+                    "base_url": self._config.base_url,
+                    "model": request.model,
+                    "operation_name": request.operation_name,
+                    "status_code": exc.code,
+                    "response": response_json,
+                    "cause": str(exc),
+                },
+            ) from exc
         except Exception as exc:
             raise ExternalDependencyError(
                 "Structured LLM request failed",
@@ -154,6 +173,7 @@ class MiniMaxStructuredLLMClient:
                     "base_url": self._config.base_url,
                     "model": request.model,
                     "operation_name": request.operation_name,
+                    "status_code": None,
                     "cause": str(exc),
                 },
             ) from exc
