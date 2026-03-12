@@ -9,6 +9,7 @@ from pathfinder.errors import ValidationError
 from pathfinder.llm.config import OpenRouterSettings
 from pathfinder.llm.models import LLMProvider, StructuredLLMRequest, StructuredPrompt
 from pathfinder.llm.openai_client import OpenAIStructuredLLMClient
+from pathfinder.llm.resilient_client import ResilientStructuredLLMClient, RetryPolicy
 from pathfinder.observability.logging import get_logger
 
 
@@ -96,3 +97,42 @@ def test_openai_client_raises_when_no_parsed_payload_is_present() -> None:
 
     with pytest.raises(ValidationError):
         client.generate(build_request(), response_model=DummyPayload)
+
+
+def test_resilient_client_retries_retryable_openai_errors() -> None:
+    class FakeRetryableError(Exception):
+        def __init__(self) -> None:
+            self.status_code = 429
+            super().__init__("rate limit")
+
+    response = SimpleNamespace(
+        id="req_789",
+        model="openrouter/test-model",
+        usage=None,
+        choices=[SimpleNamespace(finish_reason="stop", message=SimpleNamespace(parsed=DummyPayload(result="ok"), refusal=None))],
+    )
+    fake_client = FakeOpenAIClient(response)
+    calls = {"count": 0}
+
+    def flaky_parse(**kwargs):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise FakeRetryableError()
+        return response
+
+    fake_client.completions.parse = flaky_parse
+    wrapped = OpenAIStructuredLLMClient(
+        get_logger("llm-test"),
+        OpenRouterSettings(api_key="test", model="openrouter/test-model"),
+        client=fake_client,
+    )
+    client = ResilientStructuredLLMClient(
+        get_logger("llm-test"),
+        wrapped,
+        retry_policy=RetryPolicy(max_attempts=2, base_delay_seconds=0.0, max_delay_seconds=0.0, jitter_seconds=0.0),
+    )
+
+    result = client.generate(build_request(), response_model=DummyPayload)
+
+    assert result.parsed_output.result == "ok"
+    assert calls["count"] == 2

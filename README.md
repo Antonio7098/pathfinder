@@ -79,6 +79,21 @@ python -m pathfinder.cli run-full-pipeline \
   --timeout-seconds 600
 ```
 
+Run the latency-optimized pipeline variant:
+
+```bash
+python -m pathfinder.cli run-latency-optimized-pipeline \
+  --repo tests/fixtures/demo_vuln_repo \
+  --output-dir demo-output-latency \
+  --graph-mode service \
+  --provider openrouter \
+  --model nvidia/nemotron-3-super-120b-a12b:free \
+  --timeout-seconds 300 \
+  --max-concurrent-security-tasks 6
+```
+
+This variant keeps the same artifact boundaries as the standard full pipeline, but parallelizes security-analysis work with bounded concurrency and adds retry/backoff handling for transient LLM failures such as `429` rate limits.
+
 Then open the generated dashboard:
 
 ```bash
@@ -217,6 +232,7 @@ Important directories:
 * `docs/STRUCTURAL_GRAPH_EXTRACTION.md` — structural extraction implementation details
 * `docs/SERVICE_GRAPH_GENERATION.md` — service grouping and deterministic service graph derivation
 * `docs/RECOMMENDATION_REPORTING.md` — report input/output artifacts, prompts, observability, and CLI usage
+* `docs/LATENCY_OPTIMIZED_PIPELINE.md` — latency-optimized pipeline design, usage, and measured speedup
 * `docs/EVALUATION.md` — evaluation datasets, metrics, artifacts, and cost tracking
 * `docs/GRAPH_SCHEMA.md` — structural graph schema guidance
 * `docs/ENGINEERING_CONVENTIONS.md` — logging, errors, typing, and validation rules

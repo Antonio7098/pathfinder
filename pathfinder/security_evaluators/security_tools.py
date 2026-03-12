@@ -6,7 +6,15 @@ import os
 from pathlib import Path
 
 from pathfinder.errors import ExternalDependencyError, ValidationError
-from pathfinder.llm import LLMProvider, MiniMaxSettings, MiniMaxStructuredLLMClient, OpenAIStructuredLLMClient, OpenRouterSettings, StructuredLLMRequest
+from pathfinder.llm import (
+    LLMProvider,
+    MiniMaxSettings,
+    MiniMaxStructuredLLMClient,
+    OpenAIStructuredLLMClient,
+    OpenRouterSettings,
+    ResilientStructuredLLMClient,
+    StructuredLLMRequest,
+)
 from pathfinder.llm.models import LLMInvocationRecord, TokenUsage
 from pathfinder.llm.config import _parse_env_file
 from pathfinder.llm.prompts.security_evaluation import EdgeSecurityPromptContext, EdgeSecurityPromptRegistry, FileSecurityPromptContext, FileSecurityPromptRegistry
@@ -37,9 +45,9 @@ class PathfinderAI:
         if llm_client is not None:
             self._llm_client = llm_client
         elif self._provider == LLMProvider.MINIMAX:
-            self._llm_client = MiniMaxStructuredLLMClient(self._logger, settings)
+            self._llm_client = ResilientStructuredLLMClient(self._logger, MiniMaxStructuredLLMClient(self._logger, settings))
         else:
-            self._llm_client = OpenAIStructuredLLMClient(self._logger, settings)
+            self._llm_client = ResilientStructuredLLMClient(self._logger, OpenAIStructuredLLMClient(self._logger, settings))
 
     def analyze_node(self, file_path):
         path = Path(file_path)

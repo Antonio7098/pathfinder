@@ -9,7 +9,15 @@ from time import perf_counter
 from pydantic import BaseModel, ConfigDict
 
 from pathfinder.errors import ExternalDependencyError, ValidationError
-from pathfinder.llm import LLMProvider, MiniMaxSettings, MiniMaxStructuredLLMClient, OpenAIStructuredLLMClient, OpenRouterSettings, StructuredLLMRequest
+from pathfinder.llm import (
+    LLMProvider,
+    MiniMaxSettings,
+    MiniMaxStructuredLLMClient,
+    OpenAIStructuredLLMClient,
+    OpenRouterSettings,
+    ResilientStructuredLLMClient,
+    StructuredLLMRequest,
+)
 from pathfinder.llm.models import LLMInvocationRecord, TokenUsage
 from pathfinder.llm.prompts.recommendation_report import RecommendationReportPromptContext, RecommendationReportPromptRegistry
 from pathfinder.observability.logging import log_event
@@ -322,7 +330,7 @@ def create_openrouter_recommendation_report_service(
     timeout_seconds: float = 60.0,
 ) -> RecommendationReportService:
     settings = OpenRouterSettings.from_env(model_override=model_override, timeout_seconds=timeout_seconds)
-    llm_client = OpenAIStructuredLLMClient(logger, settings)
+    llm_client = ResilientStructuredLLMClient(logger, OpenAIStructuredLLMClient(logger, settings))
     return RecommendationReportService(logger, llm_client=llm_client, model=settings.model, provider=LLMProvider.OPENROUTER)
 
 
@@ -333,5 +341,5 @@ def create_minimax_recommendation_report_service(
     timeout_seconds: float = 60.0,
 ) -> RecommendationReportService:
     settings = MiniMaxSettings.from_env(model_override=model_override, timeout_seconds=timeout_seconds)
-    llm_client = MiniMaxStructuredLLMClient(logger, settings)
+    llm_client = ResilientStructuredLLMClient(logger, MiniMaxStructuredLLMClient(logger, settings))
     return RecommendationReportService(logger, llm_client=llm_client, model=settings.model, provider=LLMProvider.MINIMAX)
