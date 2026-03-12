@@ -167,6 +167,10 @@ For this repository, the observed compression ratios are:
 
 If similar ratios held on larger repos, the downstream security-analysis stage would keep shrinking by roughly the same factor.
 
+### Mathematical derivations
+
+Snce we're assuming every file/service is used we can model the files as vertices and connections as edges in a connected graph. For $n$ files this means a minimum of $n-1$ edges where each file is used by exactly one other file (except the main/app file). In the worst case, we avoid cyclical calls by modeling the repository as a digraph instead, which has at most $\sum{i}_{i=1}^{n-1} = (n-1) + (n-1) + ... + 2 + 1 = \frac{n(n+1)}{2}$ edges. Combined with the LLM calls for the $n$ nodes, this leaves between $2n-1$ and $\frac{n(n+1)}{2}$ calls.
+
 ---
 
 ## Example larger-repo projections
