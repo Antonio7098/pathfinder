@@ -8,3 +8,5 @@ pathfinder-output/
 pathfinder-output-minimax/
 pathfinder-output-minimax-clean/
 service_graph_temp.html
+lib/
+runs/
