@@ -169,7 +169,9 @@ If similar ratios held on larger repos, the downstream security-analysis stage w
 
 ### Mathematical derivations
 
-Snce we're assuming every file/service is used we can model the files as vertices and connections as edges in a connected graph. For $n$ files this means a minimum of $n-1$ edges where each file is used by exactly one other file (except the main/app file). In the worst case, we avoid cyclical calls by modeling the repository as a digraph instead, which has at most $\sum{i}_{i=1}^{n-1} = (n-1) + (n-1) + ... + 2 + 1 = \frac{n(n+1)}{2}$ edges. Combined with the LLM calls for the $n$ nodes, this leaves between $2n-1$ and $\frac{n(n+1)}{2}$ calls.
+Since we're assuming every file/service is used we can model the files as vertices and connections as edges in a connected graph. For $n$ files this means a minimum of $n-1$ edges where each file is used by exactly one other file (except the main/app file). In the worst case, we avoid cyclical calls by modeling the repository as a digraph instead, which has at most $\sum{i}_{i=1}^{n-1} = (n-1) + (n-1) + ... + 2 + 1 = \frac{n(n-1)}{2}$ edges. Combined with the initial LLM calls for the $n$ nodes, this leaves between $2n-1$ and $\frac{n(n+1)}{2}$ calls.
+
+On the service level we assume that there are $k$ file per service, reducing the total LLM calls to between $\frac{2n}{k} - 1$ $\frac{\frac{n}{k}\left(\frac{n}{k}+1\right)}{2}$. It should be noted that each service edge corresponds to a file edge so the number of edges will always decrease. Furthermore, we expect the service grouping to group dense components together into single services and produce a comparatively sparse graph. In the best case this constitutes an asymptotic improvement of $O(nk^2)$, thouh a linear scale is more likely. 
 
 ---
 
